@@ -6,15 +6,30 @@ import { evidenceForActivity, listEvidence } from "@/features/evidence/server/li
 import { EvidenceCard } from "@/features/evidence/components/evidence-card";
 import { EvidencePicker, DetachEvidenceButton } from "@/features/evidence/components/evidence-picker";
 
-export default async function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+import { safeRedirect } from "@/lib/auth/safe-redirect";
+
+export default async function ActivityDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ returnTo?: string }>;
+}) {
   const { id } = await params;
+  const rawSearch = searchParams ? await searchParams : {};
+  const returnTo = rawSearch.returnTo ? safeRedirect(rawSearch.returnTo) : undefined;
   const activity = await getActivity(id);
   if (!activity) notFound();
   const [attached, library] = await Promise.all([
     evidenceForActivity(id), listEvidence({ page: 1 }),
   ]);
+  const backUrl = returnTo || "/activities";
+  const editUrl = returnTo
+    ? `/activities/${id}/edit?returnTo=${encodeURIComponent(returnTo)}`
+    : `/activities/${id}/edit`;
+
   return <article className="mx-auto max-w-3xl space-y-6">
-    <Link href="/activities" className="text-sm text-primary underline">← Aktivitas</Link>
+    <Link href={backUrl} className="text-sm text-primary underline">← Kembali</Link>
     <header><div className="flex flex-wrap items-start justify-between gap-3">
       <div><h1 className="text-2xl font-bold">{activity.title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{activity.activity_date}
@@ -38,7 +53,7 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
     </div>
     <p className="text-xs text-muted-foreground">Sumber: {activity.source} · Versi {activity.version}</p>
     <div className="flex items-center gap-4">
-      <Link href={`/activities/${id}/edit`} className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">Edit</Link>
+      <Link href={editUrl} className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">Edit</Link>
       <DeleteActivityButton id={id} />
     </div>
   </article>;

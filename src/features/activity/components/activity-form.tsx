@@ -9,6 +9,9 @@ import { loadActivityDraft, removeActivityDraft, saveActivityDraft, type Activit
 import type { Activity, ActivityStatus } from "../domain/types";
 import { activityFieldsSchema } from "../schemas/activity";
 
+import { safeRedirect } from "@/lib/auth/safe-redirect";
+import { isRealDate } from "../domain/date";
+
 type FormValues = {
   title: string; description: string; activityDate: string;
   startTime: string; endTime: string; status: ActivityStatus;
@@ -19,15 +22,18 @@ type Props = {
   timezone: string;
   quick?: boolean;
   activity?: Activity;
+  initialDate?: string;
+  returnTo?: string;
 };
 
-export function ActivityForm({ userId, timezone, quick = false, activity }: Props) {
+export function ActivityForm({ userId, timezone, quick = false, activity, initialDate, returnTo }: Props) {
   const router = useRouter();
   const draftId = activity ? `edit-${activity.id}` : quick ? "quick" : "new";
   const today = localDateAt(new Date(), timezone);
+  const initialDateResolved = initialDate && isRealDate(initialDate) ? initialDate : today;
   const initial: FormValues = {
     title: activity?.title ?? "", description: activity?.description ?? "",
-    activityDate: activity?.activity_date ?? today,
+    activityDate: activity?.activity_date ?? initialDateResolved,
     startTime: activity?.start_time?.slice(0, 5) ?? "",
     endTime: activity?.end_time?.slice(0, 5) ?? "",
     status: activity?.status ?? "DRAFT",
@@ -130,7 +136,8 @@ export function ActivityForm({ userId, timezone, quick = false, activity }: Prop
       removeActivityDraft(userId, draftId);
       dirtyRef.current = false;
       setDirty(false);
-      router.push(`/activities/${result.activity.id}`);
+      const destination = returnTo ? safeRedirect(returnTo) : `/activities/${result.activity.id}`;
+      router.push(destination);
       router.refresh();
     } catch {
       setMessage("Respons belum diterima. Coba lagi; kunci penyimpanan yang sama akan dipakai.");

@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   CalendarCheck2,
   Plus,
-  KanbanSquare,
+  BookOpen,
   Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ export function MobileBottomNav() {
     { name: "Home", href: "/dashboard", icon: LayoutDashboard },
     { name: "Activity", href: "/activities", icon: CalendarCheck2 },
     { name: "Quick", href: "/activities/new?quick=1", icon: Plus, isAction: true },
-    { name: "Todo", href: "/todos", icon: KanbanSquare },
+    { name: "Logbook", href: "/logbook", icon: BookOpen },
     { name: "Evidence", href: "/evidence", icon: ImageIcon },
   ];
 
