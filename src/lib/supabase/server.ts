@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { getClientEnv } from "@/lib/env";
+import { getClientEnv } from "@/lib/env/client";
 
 /**
  * Creates a Supabase client for Server Components, Server Actions,

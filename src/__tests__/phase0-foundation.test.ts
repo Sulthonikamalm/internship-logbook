@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cn } from "@/lib/utils";
-import { clientEnvSchema, serverEnvSchema } from "@/lib/env";
+import { clientEnvSchema } from "@/lib/env/client";
+import { serverEnvSchema } from "@/lib/env/server";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
 describe("Phase 0 Foundation Tests", () => {

@@ -1,5 +1,7 @@
+import "server-only";
+
 import { createClient } from "@supabase/supabase-js";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv } from "@/lib/env/server";
 
 /**
  * Creates an elevated Supabase client using SUPABASE_SERVICE_ROLE_KEY.
