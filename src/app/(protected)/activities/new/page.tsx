@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { ActivityForm } from "@/features/activity/components/activity-form";
+import { QuickPhotoActivity } from "@/features/evidence/components/quick-photo-activity";
 
 export default async function NewActivityPage({ searchParams }: { searchParams: Promise<{ quick?: string }> }) {
   const user = await requireActiveUser();
@@ -14,7 +15,9 @@ export default async function NewActivityPage({ searchParams }: { searchParams: 
             <p className="text-sm text-muted-foreground">Simpan pekerjaan dalam beberapa detik.</p></div>
           <Link href="/activities" aria-label="Tutup" className="px-2 text-2xl">×</Link>
         </div>
-        <ActivityForm userId={user.userId} timezone={user.timezone} quick />
+        <div className="mb-4"><QuickPhotoActivity /></div>
+        <div className="my-4 border-t pt-4"><h2 className="mb-3 font-semibold">Atau catat dengan teks</h2>
+          <ActivityForm userId={user.userId} timezone={user.timezone} quick /></div>
       </section>
     </div>
   ) : <section className="mx-auto max-w-2xl space-y-6">

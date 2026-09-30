@@ -2,11 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActivity } from "@/features/activity/server/get-activity";
 import { DeleteActivityButton } from "@/features/activity/components/delete-activity-button";
+import { evidenceForActivity, listEvidence } from "@/features/evidence/server/list-evidence";
+import { EvidenceCard } from "@/features/evidence/components/evidence-card";
+import { EvidencePicker, DetachEvidenceButton } from "@/features/evidence/components/evidence-picker";
 
 export default async function ActivityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const activity = await getActivity(id);
   if (!activity) notFound();
+  const [attached, library] = await Promise.all([
+    evidenceForActivity(id), listEvidence({ page: 1 }),
+  ]);
   return <article className="mx-auto max-w-3xl space-y-6">
     <Link href="/activities" className="text-sm text-primary underline">← Aktivitas</Link>
     <header><div className="flex flex-wrap items-start justify-between gap-3">
@@ -22,7 +28,13 @@ export default async function ActivityDetailPage({ params }: { params: Promise<{
     </div>
     <div className="rounded-lg border bg-card p-5">
       <h2 className="font-semibold">Evidence</h2>
-      <p className="mt-2 text-sm text-muted-foreground">Lampiran evidence tersedia di Phase 3.</p>
+      {attached.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Belum ada lampiran.</p>
+        : <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {attached.map((item) => <EvidenceCard key={item.id} item={item}
+            actions={<DetachEvidenceButton activityId={id} evidenceId={item.id} />} />)}
+        </div>}
+      <div className="mt-5"><EvidencePicker activityId={id} options={library.items}
+        attachedIds={attached.map((item) => item.id)} total={library.count} /></div>
     </div>
     <p className="text-xs text-muted-foreground">Sumber: {activity.source} · Versi {activity.version}</p>
     <div className="flex items-center gap-4">
