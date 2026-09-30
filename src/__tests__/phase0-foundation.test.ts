@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { cn } from "@/lib/utils";
 import { clientEnvSchema } from "@/lib/env/client";
 import { serverEnvSchema } from "@/lib/env/server";
@@ -71,11 +71,14 @@ describe("Phase 0 Foundation Tests", () => {
   });
 
   describe("Supabase Browser Client Factory", () => {
-    it("initializes browser client with default environment fallback", () => {
+    it("initializes browser client with configured environment", () => {
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sample-anon-key-string");
       const client = createBrowserClient();
       expect(client).toBeDefined();
       expect(typeof client.auth.getSession).toBe("function");
       expect(typeof client.from).toBe("function");
+      vi.unstubAllEnvs();
     });
   });
 });

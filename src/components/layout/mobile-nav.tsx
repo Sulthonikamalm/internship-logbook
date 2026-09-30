@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "@/features/auth/components/logout-button";
 
 export function MobileHeader() {
   return (
@@ -24,9 +25,7 @@ export function MobileHeader() {
       </Link>
 
       <div className="flex items-center gap-2">
-        <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
-          Phase 0
-        </span>
+        <LogoutButton compact />
       </div>
     </header>
   );
@@ -38,7 +37,7 @@ export function MobileBottomNav() {
   const navItems = [
     { name: "Home", href: "/dashboard", icon: LayoutDashboard },
     { name: "Activity", href: "/activities", icon: CalendarCheck2 },
-    { name: "Quick", href: "/activities/new", icon: Plus, isAction: true },
+    { name: "Quick", href: "/activities/new?quick=1", icon: Plus, isAction: true },
     { name: "Todo", href: "/todos", icon: KanbanSquare },
     { name: "Evidence", href: "/evidence", icon: ImageIcon },
   ];

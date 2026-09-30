@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { LogoutButton } from "@/features/auth/components/logout-button";
 
 export const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -53,7 +54,7 @@ export function Sidebar() {
       {/* Quick Action Button */}
       <div className="p-4">
         <Button asChild className="w-full justify-start gap-2 shadow-sm font-medium">
-          <Link href="/activities/new">
+          <Link href="/activities/new?quick=1">
             <PlusCircle className="h-4 w-4" />
             <span>+ Quick Activity</span>
           </Link>
@@ -93,6 +94,7 @@ export function Sidebar() {
 
       {/* Footer / System Status */}
       <div className="border-t border-border p-4 bg-muted/30">
+        <LogoutButton />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="h-3.5 w-3.5 text-primary" />
           <span>Internship Period: 2026</span>
