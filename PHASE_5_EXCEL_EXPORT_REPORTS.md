@@ -373,14 +373,14 @@ E2E:
 
 ## 26. Exit Gate
 
-- [ ] valid xlsx opens.
-- [ ] correct user only.
-- [ ] formula safe.
-- [ ] Evidence Detail.
-- [ ] APP_PRIVATE stable.
-- [ ] broken nonfatal.
-- [ ] empty safe.
-- [ ] audit.
-- [ ] tests/build pass.
+- [x] valid xlsx opens.
+- [x] correct user only.
+- [x] formula safe.
+- [x] Evidence Detail.
+- [x] APP_PRIVATE stable.
+- [x] broken nonfatal.
+- [x] empty safe.
+- [x] audit.
+- [x] tests/build pass.
 
 No Phase 6 before gate.

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusCircle, Settings } from "lucide-react";
+import { PlusCircle, Settings, FileSpreadsheet } from "lucide-react";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { Button } from "@/components/ui/button";
 import { getLogbookRows } from "@/features/logbook/server/get-logbook-rows";
@@ -86,6 +86,12 @@ export default async function LogbookPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 font-medium shadow-2xs">
+            <Link href="/reports">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
+              <span className="hidden sm:inline">Ekspor Excel</span>
+            </Link>
+          </Button>
           <InternshipSettingsDialog
             settings={settings}
             trigger={
