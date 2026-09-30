@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #F8FAFC;
+    --foreground: #0F172A;
+    
+    --card: #FFFFFF;
+    --card-foreground: #0F172A;
+
+    --popover: #FFFFFF;
+    --popover-foreground: #0F172A;
+
+    /* Blue 600 - Primary Brand */
+    --primary: #2563EB;
+    --primary-foreground: #FFFFFF;
+
+    /* Blue 50 / Blue 700 - Secondary */
+    --secondary: #EFF6FF;
+    --secondary-foreground: #1D4ED8;
+
+    /* Slate 100 / Slate 500 - Muted */
+    --muted: #F1F5F9;
+    --muted-foreground: #64748B;
+
+    /* Blue 100 / Blue 800 - Accent */
+    --accent: #DBEAFE;
+    --accent-foreground: #1E40AF;
+
+    /* Semantic Red */
+    --destructive: #DC2626;
+    --destructive-foreground: #FFFFFF;
+
+    /* Semantic Green */
+    --success: #16A34A;
+    --success-foreground: #FFFFFF;
+
+    /* Semantic Amber */
+    --warning: #D97706;
+    --warning-foreground: #FFFFFF;
+
+    /* Slate 200 - Borders & Dividers */
+    --border: #E2E8F0;
+    --input: #E2E8F0;
+    --ring: #2563EB;
+
+    --radius: 0.5rem;
+  }
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  min-height: 100vh;
+}
