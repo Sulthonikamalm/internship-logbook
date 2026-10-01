@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { buildLogbookSheet } from "../excel/build-logbook-sheet";
 import { buildEvidenceSheet } from "../excel/build-evidence-sheet";
+import { buildTodoSheet } from "../excel/build-todo-sheet";
 import type { ExportDataResult } from "./get-export-data";
 
 export type GenerateWorkbookOptions = {
@@ -28,6 +29,11 @@ export async function generateWorkbook(
   // 2. Build Sheet 2: Evidence Detail (if requested)
   if (options.includeEvidence) {
     buildEvidenceSheet(workbook, data.evidenceDetails, options.baseUrl);
+  }
+
+  // 3. Build Sheet 3: Todos (Phase 6 extension)
+  if (data.todos && data.todos.length > 0) {
+    buildTodoSheet(workbook, data.todos);
   }
 
   // 3. Write workbook to buffer

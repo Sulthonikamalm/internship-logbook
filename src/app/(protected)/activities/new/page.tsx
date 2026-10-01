@@ -8,14 +8,24 @@ import { safeRedirect } from "@/lib/auth/safe-redirect";
 export default async function NewActivityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ quick?: string; date?: string; returnTo?: string }>;
+  searchParams: Promise<{
+    quick?: string;
+    date?: string;
+    returnTo?: string;
+    todoId?: string;
+    title?: string;
+    description?: string;
+  }>;
 }) {
   const user = await requireActiveUser();
   const search = await searchParams;
   const quick = search.quick === "1";
   const initialDate = search.date;
+  const initialTitle = search.title;
+  const initialDescription = search.description;
+  const todoId = search.todoId;
   const returnTo = search.returnTo ? safeRedirect(search.returnTo) : undefined;
-  const backUrl = returnTo || "/activities";
+  const backUrl = returnTo || (todoId ? "/todos" : "/activities");
 
   return quick ? (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center">
@@ -28,12 +38,29 @@ export default async function NewActivityPage({
         </div>
         <div className="mb-4"><QuickPhotoActivity /></div>
         <div className="my-4 border-t pt-4"><h2 className="mb-3 font-semibold">Atau catat dengan teks</h2>
-          <ActivityForm userId={user.userId} timezone={user.timezone} quick initialDate={initialDate} returnTo={returnTo} /></div>
+          <ActivityForm
+            userId={user.userId}
+            timezone={user.timezone}
+            quick
+            initialDate={initialDate}
+            initialTitle={initialTitle}
+            initialDescription={initialDescription}
+            todoId={todoId}
+            returnTo={returnTo}
+          /></div>
       </section>
     </div>
   ) : <section className="mx-auto max-w-2xl space-y-6">
     <div><Link href={backUrl} className="text-sm text-primary underline">← Kembali</Link>
       <h1 className="mt-2 text-2xl font-bold">Buat aktivitas</h1></div>
-    <ActivityForm userId={user.userId} timezone={user.timezone} initialDate={initialDate} returnTo={returnTo} />
+    <ActivityForm
+      userId={user.userId}
+      timezone={user.timezone}
+      initialDate={initialDate}
+      initialTitle={initialTitle}
+      initialDescription={initialDescription}
+      todoId={todoId}
+      returnTo={returnTo}
+    />
   </section>;
 }

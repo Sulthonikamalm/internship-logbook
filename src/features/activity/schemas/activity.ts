@@ -15,6 +15,7 @@ export const activityFieldsSchema = z.object({
     .refine((value) => value === undefined || isRealDate(value), "Tanggal tidak valid."),
   startTime: optionalTime,
   endTime: optionalTime,
+  todoId: z.string().uuid().optional().nullable(),
   source: z.enum(["manual", "quick_capture"]),
   status: z.enum(["DRAFT", "READY", "ARCHIVED"]),
 }).strict().superRefine((value, context) => {

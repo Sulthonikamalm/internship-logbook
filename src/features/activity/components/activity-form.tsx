@@ -23,16 +23,30 @@ type Props = {
   quick?: boolean;
   activity?: Activity;
   initialDate?: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  todoId?: string;
   returnTo?: string;
 };
 
-export function ActivityForm({ userId, timezone, quick = false, activity, initialDate, returnTo }: Props) {
+export function ActivityForm({
+  userId,
+  timezone,
+  quick = false,
+  activity,
+  initialDate,
+  initialTitle,
+  initialDescription,
+  todoId,
+  returnTo,
+}: Props) {
   const router = useRouter();
   const draftId = activity ? `edit-${activity.id}` : quick ? "quick" : "new";
   const today = localDateAt(new Date(), timezone);
   const initialDateResolved = initialDate && isRealDate(initialDate) ? initialDate : today;
   const initial: FormValues = {
-    title: activity?.title ?? "", description: activity?.description ?? "",
+    title: activity?.title ?? initialTitle ?? "",
+    description: activity?.description ?? initialDescription ?? "",
     activityDate: activity?.activity_date ?? initialDateResolved,
     startTime: activity?.start_time?.slice(0, 5) ?? "",
     endTime: activity?.end_time?.slice(0, 5) ?? "",
@@ -126,8 +140,12 @@ export function ActivityForm({ userId, timezone, quick = false, activity, initia
     try {
       const result = activity
         ? await updateActivity(activity.id, { ...input, expectedVersion: activity.version })
-        : await createActivity({ ...input, status: values.status === "ARCHIVED" ? "DRAFT" : values.status,
-          idempotencyKey: keyRef.current });
+        : await createActivity({
+            ...input,
+            status: values.status === "ARCHIVED" ? "DRAFT" : values.status,
+            idempotencyKey: keyRef.current,
+            todoId: todoId || undefined,
+          });
       if (!result.ok) {
         setErrors(result.fields ?? {});
         setMessage(result.message);

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ExportLogbookInput } from "../schemas/export.schema";
 import type { ExportEvidenceSummaryItem, ExportActivityRow } from "../excel/build-logbook-sheet";
 import type { ExportDetailEvidenceItem } from "../excel/build-evidence-sheet";
+import type { ExportTodoRow } from "../excel/build-todo-sheet";
 
 export type ExportDataResult = {
   user: {
@@ -14,6 +15,7 @@ export type ExportDataResult = {
   };
   activities: ExportActivityRow[];
   evidenceDetails: ExportDetailEvidenceItem[];
+  todos?: ExportTodoRow[];
 };
 
 /**
@@ -137,6 +139,84 @@ export async function getExportData(input: ExportLogbookInput): Promise<ExportDa
     evidences: evidenceMap.get(act.id) || [],
   }));
 
+  // 4. Safely fetch owner Todos for optional Excel Todos sheet
+  let todos: ExportTodoRow[] = [];
+  try {
+    const { data: todosData } = await supabase
+      .from("todos")
+      .select("id, title, priority, due_date, current_stage_id, started_at, completed_at, evidence_health")
+      .eq("user_id", user.userId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true });
+
+    if (todosData && todosData.length > 0) {
+      type StageRow = { id: string; name: string };
+      type TodoRow = {
+        id: string;
+        title: string;
+        priority: string;
+        due_date: string | null;
+        current_stage_id: string;
+        started_at: string | null;
+        completed_at: string | null;
+        evidence_health: string;
+      };
+
+      const { data: stageRows } = await supabase.from("todo_stages").select("id, name");
+      const stageMap = new Map(((stageRows ?? []) as unknown as StageRow[]).map((s) => [s.id, s.name]));
+
+      const typedTodos = todosData as unknown as TodoRow[];
+      const todoIds = typedTodos.map((t) => t.id);
+
+      // Fetch evidence counts for each todo
+      const evidenceCountMap = new Map<string, number>();
+      const { data: rels } = await supabase
+        .from("todo_evidences")
+        .select("todo_id, evidence_id")
+        .in("todo_id", todoIds)
+        .eq("attached_by", user.userId);
+
+      const distinctEv = new Set<string>();
+      for (const r of rels ?? []) {
+        const key = `${r.todo_id}:${r.evidence_id}`;
+        if (!distinctEv.has(key)) {
+          distinctEv.add(key);
+          evidenceCountMap.set(r.todo_id, (evidenceCountMap.get(r.todo_id) ?? 0) + 1);
+        }
+      }
+
+      // Fetch activity counts for each todo
+      const activityCountMap = new Map<string, number>();
+      const { data: linkedActs } = await supabase
+        .from("activities")
+        .select("id, todo_id")
+        .in("todo_id", todoIds)
+        .eq("user_id", user.userId)
+        .is("deleted_at", null);
+
+      for (const a of linkedActs ?? []) {
+        if (a.todo_id) {
+          activityCountMap.set(a.todo_id, (activityCountMap.get(a.todo_id) ?? 0) + 1);
+        }
+      }
+
+      todos = typedTodos.map((t) => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        dueDate: t.due_date,
+        stageName: stageMap.get(t.current_stage_id) ?? "Unknown",
+        startedAt: t.started_at,
+        completedAt: t.completed_at,
+        evidenceCount: evidenceCountMap.get(t.id) ?? 0,
+        evidenceHealth: t.evidence_health,
+        activityCount: activityCountMap.get(t.id) ?? 0,
+      }));
+    }
+  } catch (todoErr) {
+    console.warn("[reports.getExportData] Non-fatal error querying todos for report:", todoErr);
+  }
+
   return {
     user: {
       userId: user.userId,
@@ -145,5 +225,6 @@ export async function getExportData(input: ExportLogbookInput): Promise<ExportDa
     },
     activities,
     evidenceDetails,
+    todos,
   };
 }
