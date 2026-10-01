@@ -3,7 +3,7 @@ import { sanitizeCellText } from "./sanitize-cell";
 
 export type ExportEvidenceSummaryItem = {
   id: string;
-  type: "PHOTO" | "LINK";
+  type: "PHOTO" | "LINK" | "GITHUB_COMMIT";
   title: string | null;
   status: string;
   url?: string | null;
@@ -21,7 +21,7 @@ export type ExportActivityRow = {
 
 /**
  * Builds the evidence summary string for Sheet 1.
- * e.g., "1 Foto, 2 Tautan" or "1 Foto" or "—".
+ * e.g., "1 Foto, 2 Tautan, 1 Commit" or "—".
  */
 export function formatEvidenceSummary(evidences?: ExportEvidenceSummaryItem[]): string {
   if (!evidences || evidences.length === 0) {
@@ -30,15 +30,18 @@ export function formatEvidenceSummary(evidences?: ExportEvidenceSummaryItem[]): 
 
   let photoCount = 0;
   let linkCount = 0;
+  let commitCount = 0;
 
   for (const ev of evidences) {
     if (ev.type === "PHOTO") photoCount++;
     else if (ev.type === "LINK") linkCount++;
+    else if (ev.type === "GITHUB_COMMIT") commitCount++;
   }
 
   const parts: string[] = [];
   if (photoCount > 0) parts.push(`${photoCount} Foto`);
   if (linkCount > 0) parts.push(`${linkCount} Tautan`);
+  if (commitCount > 0) parts.push(`${commitCount} Commit`);
 
   return parts.length > 0 ? parts.join(", ") : "—";
 }

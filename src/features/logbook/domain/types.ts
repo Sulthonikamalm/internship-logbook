@@ -43,7 +43,7 @@ export type LogbookRow = {
 };
 
 export type FilterPreset = "today" | "week" | "month" | "custom";
-export type EvidenceTypeFilter = "all" | "photo" | "link" | "none";
+export type EvidenceTypeFilter = "all" | "photo" | "link" | "github" | "none";
 
 export type LogbookFilterInput = {
   preset?: string;

@@ -392,16 +392,16 @@ E2E:
 
 ## 31. Exit Gate
 
-- [ ] optional proven.
-- [ ] OAuth state.
-- [ ] token secure.
-- [ ] manual sync.
-- [ ] picker.
-- [ ] evidence conversion/reuse.
-- [ ] historical retention.
-- [ ] rate/revocation.
-- [ ] report link.
-- [ ] RLS.
-- [ ] tests/build.
+- [x] optional proven.
+- [x] OAuth state.
+- [x] token secure.
+- [x] manual sync.
+- [x] picker.
+- [x] evidence conversion/reuse.
+- [x] historical retention.
+- [x] rate/revocation.
+- [x] report link.
+- [x] RLS.
+- [x] tests/build.
 
-No Phase 8 before gate.
+Phase 7 complete. Ready for Phase 8.

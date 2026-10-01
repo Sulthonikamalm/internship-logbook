@@ -69,7 +69,7 @@ export function normalizeLogbookFilters(
 
   // 1. Evidence Type
   let evidenceType: EvidenceTypeFilter = "all";
-  if (raw.evidenceType && ["all", "photo", "link", "none"].includes(raw.evidenceType.toLowerCase())) {
+  if (raw.evidenceType && ["all", "photo", "link", "github", "none"].includes(raw.evidenceType.toLowerCase())) {
     evidenceType = raw.evidenceType.toLowerCase() as EvidenceTypeFilter;
   }
 

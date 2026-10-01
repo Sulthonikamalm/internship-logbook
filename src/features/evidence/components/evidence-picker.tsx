@@ -48,7 +48,7 @@ export function EvidencePicker({ activityId, options, attachedIds, total = 0 }: 
           className="w-full rounded-md border bg-background px-3 py-2 text-base">
           <option value="">Pilih evidence</option>
           {available.map((item) => <option key={item.id} value={item.id}>
-            {item.title || (item.type === "PHOTO" ? "Foto" : "Tautan")} · {new Date(item.createdAt).toLocaleDateString("id-ID")}
+            [{item.type === "PHOTO" ? "FOTO" : item.type === "GITHUB_COMMIT" ? "COMMIT" : "TAUTAN"}] {item.title || (item.type === "PHOTO" ? "Foto" : item.type === "GITHUB_COMMIT" ? "Commit GitHub" : "Tautan")} · {new Date(item.createdAt).toLocaleDateString("id-ID")}
           </option>)}
         </select></div>
       <button type="button" disabled={!selected || pending} onClick={() => attach(selected)}
@@ -60,9 +60,14 @@ export function EvidencePicker({ activityId, options, attachedIds, total = 0 }: 
       className="text-sm text-primary underline disabled:opacity-50">{loadingMore ? "Memuat..." : "Muat evidence lainnya"}</button>}
     {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
     {success && <p role="status" className="text-sm text-primary">{success}</p>}
-    <details><summary className="cursor-pointer text-sm text-primary">Unggah foto baru</summary>
-      <div className="mt-3"><PhotoUploader onUploaded={attach} compact /></div>
-    </details>
+    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60">
+      <details><summary className="cursor-pointer text-sm text-primary">Unggah foto baru</summary>
+        <div className="mt-3"><PhotoUploader onUploaded={attach} compact /></div>
+      </details>
+      <a href="/integrations" className="text-xs text-muted-foreground hover:text-primary underline">
+        + Lampirkan Commit dari GitHub
+      </a>
+    </div>
   </div>;
 }
 

@@ -5,7 +5,7 @@ export type ExportDetailEvidenceItem = {
   evidenceId: string;
   activityId: string;
   activityDate: string;
-  type: "PHOTO" | "LINK";
+  type: "PHOTO" | "LINK" | "GITHUB_COMMIT";
   title: string | null;
   status: string;
   url?: string | null;
@@ -29,7 +29,7 @@ export function buildEvidenceSheet(
     { header: "Evidence ID", key: "evidenceId", width: 38 },
     { header: "Activity ID", key: "activityId", width: 38 },
     { header: "Tanggal", key: "activityDate", width: 14 },
-    { header: "Type", key: "type", width: 12 },
+    { header: "Type", key: "type", width: 16 },
     { header: "Nama/Judul", key: "title", width: 35 },
     { header: "URL", key: "url", width: 50 },
     { header: "Status", key: "status", width: 14 },
@@ -78,11 +78,11 @@ export function buildEvidenceSheet(
   items.forEach((item) => {
     // Determine evidence URL:
     // PHOTO: stable application route /evidence/<id> (APP_PRIVATE)
-    // LINK: stored external URL
+    // LINK / GITHUB_COMMIT: external URL (commit URL or web link)
     let targetUrl: string | null = null;
     if (item.type === "PHOTO") {
       targetUrl = `${normalizedBase}/evidence/${item.evidenceId}`;
-    } else if (item.type === "LINK") {
+    } else if (item.type === "LINK" || item.type === "GITHUB_COMMIT") {
       targetUrl = item.url ?? null;
     }
 

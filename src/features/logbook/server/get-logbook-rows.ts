@@ -4,7 +4,7 @@ import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeLogbookFilters } from "../domain/filters";
 import type { ActivityStatus } from "@/features/activity/domain/types";
-import type { EvidenceStatus } from "@/features/evidence/domain/types";
+import type { EvidenceStatus, EvidenceType } from "@/features/evidence/domain/types";
 import type {
   LogbookEvidenceItem,
   LogbookFilterInput,
@@ -59,6 +59,8 @@ export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<Log
     query = query.gt("photo_count", 0);
   } else if (filters.evidenceType === "link") {
     query = query.gt("link_count", 0);
+  } else if (filters.evidenceType === "github") {
+    query = query.gt("total_evidence_count", 0);
   } else if (filters.evidenceType === "none") {
     query = query.eq("total_evidence_count", 0);
   }
@@ -147,18 +149,19 @@ export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<Log
     if (evidenceIds.length > 0) {
       const { data: evidenceItems } = await supabase
         .from("evidences")
-        .select("id, type, title, status, note, link_evidences(url)")
+        .select("id, type, title, status, note, link_evidences(url), github_evidences(commit_url)")
         .in("id", evidenceIds)
         .eq("user_id", user.userId)
         .is("deleted_at", null);
 
       type FetchedEvidence = {
         id: string;
-        type: "PHOTO" | "LINK";
+        type: EvidenceType;
         title: string | null;
         status: EvidenceStatus;
         note: string | null;
         link_evidences?: { url: string }[];
+        github_evidences?: { commit_url: string }[];
       };
 
       const itemsById = new Map<string, FetchedEvidence>();
@@ -180,7 +183,9 @@ export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<Log
           status: item.status,
           note: item.note,
           thumbnailUrl: isPhoto ? `/api/media/evidence/${item.id}?thumb=1` : undefined,
-          url: !isPhoto ? item.link_evidences?.[0]?.url : undefined,
+          url: !isPhoto
+            ? (item.link_evidences?.[0]?.url || item.github_evidences?.[0]?.commit_url)
+            : undefined,
         };
         currentList.push(logbookEvidence);
         evidenceMap.set(rel.activity_id, currentList);

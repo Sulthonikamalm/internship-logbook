@@ -75,17 +75,18 @@ export async function getExportData(input: ExportLogbookInput): Promise<ExportDa
     if (evidenceIds.length > 0) {
       const { data: evidenceItems } = await supabase
         .from("evidences")
-        .select("id, type, title, status, link_evidences(url)")
+        .select("id, type, title, status, link_evidences(url), github_evidences(commit_url)")
         .in("id", evidenceIds)
         .eq("user_id", user.userId)
         .is("deleted_at", null);
 
       type FetchedEvidence = {
         id: string;
-        type: "PHOTO" | "LINK";
+        type: "PHOTO" | "LINK" | "GITHUB_COMMIT";
         title: string | null;
         status: string;
         link_evidences?: { url: string }[];
+        github_evidences?: { commit_url: string }[];
       };
 
       const itemMap = new Map<string, FetchedEvidence>();
@@ -101,12 +102,19 @@ export async function getExportData(input: ExportLogbookInput): Promise<ExportDa
         const parentActivity = activityMap.get(rel.activity_id);
         if (!item || !parentActivity) continue;
 
+        const evidenceUrl =
+          item.type === "LINK"
+            ? item.link_evidences?.[0]?.url
+            : item.type === "GITHUB_COMMIT"
+            ? item.github_evidences?.[0]?.commit_url
+            : undefined;
+
         const summaryItem: ExportEvidenceSummaryItem = {
           id: item.id,
           type: item.type,
           title: item.title,
           status: item.status,
-          url: item.type === "LINK" ? item.link_evidences?.[0]?.url : undefined,
+          url: evidenceUrl,
         };
 
         const currentList = evidenceMap.get(rel.activity_id) || [];
@@ -120,7 +128,7 @@ export async function getExportData(input: ExportLogbookInput): Promise<ExportDa
           type: item.type,
           title: item.title,
           status: item.status,
-          url: item.type === "LINK" ? item.link_evidences?.[0]?.url : null,
+          url: evidenceUrl || null,
         });
       }
     }

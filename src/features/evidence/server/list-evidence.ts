@@ -15,9 +15,9 @@ export async function listEvidence(filter: EvidenceFilter = {}): Promise<{
   const supabase = await createClient();
   const page = Math.max(1, Math.min(10000, Math.floor(filter.page || 1)));
   let query = supabase.from("evidence_library")
-    .select("id,type,title,note,status,captured_at,created_at,mime_type,size_bytes,width,height,url,assignment_count", { count: "exact" })
+    .select("id,type,title,note,status,captured_at,created_at,mime_type,size_bytes,width,height,url,repository_name,sha,commit_message,assignment_count", { count: "exact" })
     .eq("user_id", user.userId).is("deleted_at", null);
-  if (filter.type === "PHOTO" || filter.type === "LINK") query = query.eq("type", filter.type);
+  if (filter.type === "PHOTO" || filter.type === "LINK" || filter.type === "GITHUB_COMMIT") query = query.eq("type", filter.type);
   if (filter.type === "BROKEN") query = query.eq("status", "BROKEN");
   if (filter.assignment === "assigned") query = query.gt("assignment_count", 0);
   if (filter.assignment === "unassigned") query = query.eq("assignment_count", 0);
@@ -33,7 +33,14 @@ export async function listEvidence(filter: EvidenceFilter = {}): Promise<{
     status: row.status, capturedAt: row.captured_at, createdAt: row.created_at,
     mimeType: row.mime_type ?? undefined, sizeBytes: row.size_bytes ?? undefined,
     width: row.width ?? undefined, height: row.height ?? undefined,
-    url: row.url ?? undefined, assignmentCount: row.assignment_count ?? 0,
+    url: row.url ?? undefined,
+    githubCommit: row.sha ? {
+      commitUrl: row.url || "",
+      repositoryName: row.repository_name || "",
+      sha: row.sha,
+      message: row.commit_message || null,
+    } : undefined,
+    assignmentCount: row.assignment_count ?? 0,
   })) as SafeEvidence[] };
 }
 
@@ -47,7 +54,7 @@ export async function evidenceForActivity(activityId: string): Promise<SafeEvide
   const ids = (relations ?? []).map((row) => row.evidence_id);
   if (!ids.length) return [];
   const { data, error: evidenceError } = await supabase.from("evidence_library")
-    .select("id,type,title,note,status,captured_at,created_at,mime_type,size_bytes,width,height,url,assignment_count")
+    .select("id,type,title,note,status,captured_at,created_at,mime_type,size_bytes,width,height,url,repository_name,sha,commit_message,assignment_count")
     .eq("user_id", user.userId).in("id", ids).is("deleted_at", null);
   if (evidenceError) throw new Error("Lampiran gagal dimuat.");
   const byId = new Map((data ?? []).map((row) => [row.id, row]));
@@ -57,6 +64,13 @@ export async function evidenceForActivity(activityId: string): Promise<SafeEvide
       status: row.status, capturedAt: row.captured_at, createdAt: row.created_at,
       mimeType: row.mime_type ?? undefined, sizeBytes: row.size_bytes ?? undefined,
       width: row.width ?? undefined, height: row.height ?? undefined,
-      url: row.url ?? undefined, assignmentCount: row.assignment_count ?? 0 } as SafeEvidence] : [];
+      url: row.url ?? undefined,
+      githubCommit: row.sha ? {
+        commitUrl: row.url || "",
+        repositoryName: row.repository_name || "",
+        sha: row.sha,
+        message: row.commit_message || null,
+      } : undefined,
+      assignmentCount: row.assignment_count ?? 0 } as SafeEvidence] : [];
   });
 }

@@ -257,6 +257,7 @@ export function LogbookFiltersBar({ filters }: Props) {
                 <option value="all">Semua</option>
                 <option value="photo">Hanya Foto</option>
                 <option value="link">Hanya Tautan</option>
+                <option value="github">Hanya GitHub Commit</option>
                 <option value="none">Tanpa Evidence</option>
               </select>
             </div>
