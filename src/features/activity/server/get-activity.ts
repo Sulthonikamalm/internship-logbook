@@ -9,7 +9,7 @@ export async function getActivity(id: string): Promise<Activity | null> {
   const user = await requireActiveUser();
   if (!z.uuid().safeParse(id).success) return null;
   const supabase = await createClient();
-  const { data, error } = await supabase.from("activities").select("*")
+  const { data, error } = await supabase.from("canonical_activities").select("*")
     .eq("id", id).eq("user_id", user.userId).is("deleted_at", null).maybeSingle();
   if (error) {
     console.error(`[activity.get] database code=${error.code}`);
