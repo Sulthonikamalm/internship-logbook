@@ -113,6 +113,7 @@ CREATE POLICY github_evidences_insert_own ON public.github_evidences
   ));
 
 -- 7. Update public.evidence_library view to surface commit details
+DROP VIEW IF EXISTS public.evidence_library;
 CREATE OR REPLACE VIEW public.evidence_library WITH (security_invoker = true) AS
 SELECT
   e.id,

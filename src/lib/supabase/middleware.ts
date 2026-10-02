@@ -1,12 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getClientEnv } from "@/lib/env/client";
+import { safeLoginRedirect } from "@/lib/auth/safe-redirect";
 
 /**
  * Protected route prefixes that require authentication.
  * Requests to these paths will redirect to /login if no session.
  */
-const PROTECTED_PREFIXES = ["/dashboard", "/activities", "/profile", "/admin"];
+const PROTECTED_PREFIXES = ["/dashboard", "/activities", "/todos", "/evidence", "/logbook", "/reports", "/integrations", "/settings", "/profile", "/admin"];
 
 /**
  * Auth routes that authenticated users should be redirected away from.
@@ -36,7 +37,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headersToSet) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -46,6 +47,9 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
+          for (const [name, value] of Object.entries(headersToSet ?? {})) {
+            supabaseResponse.headers.set(name, value);
+          }
         },
       },
     }
@@ -58,6 +62,15 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  function redirectWithSession(url: URL) {
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+    for (const name of ["cache-control", "expires", "pragma"]) {
+      const value = supabaseResponse.headers.get(name);
+      if (value) response.headers.set(name, value);
+    }
+    return response;
+  }
 
   // Protected route: redirect unauthenticated users to login
   const isProtectedRoute = PROTECTED_PREFIXES.some(
@@ -67,22 +80,23 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   if (isProtectedRoute && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
+    loginUrl.search = "";
     // Preserve intended destination for post-login redirect
     if (pathname !== "/dashboard") {
-      loginUrl.searchParams.set("next", pathname);
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     }
-    return NextResponse.redirect(loginUrl);
+    return redirectWithSession(loginUrl);
   }
 
-  // Auth route: redirect authenticated users to dashboard
+  // Cookie updates can render the login route again during a Server Action.
+  // Honor its destination instead of overriding the pending navigation to Home.
   const isAuthRoute = AUTH_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 
   if (isAuthRoute && user) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    return NextResponse.redirect(dashboardUrl);
+    const destination = safeLoginRedirect(request.nextUrl.searchParams.get("next"));
+    return redirectWithSession(new URL(destination, request.nextUrl.origin));
   }
 
   return supabaseResponse;

@@ -4,9 +4,14 @@ import { getExportData } from "@/features/reports/server/get-export-data";
 import { generateWorkbook } from "@/features/reports/server/generate-workbook";
 import { buildExportFilename } from "@/features/reports/excel/sanitize-filename";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { getServerEnv } from "@/lib/env/server";
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "UNAUTHENTICATED", message: "Sesi berakhir. Masuk kembali." }, { status: 401 });
+    if (!user.isActive) return NextResponse.json({ error: "FORBIDDEN", message: "Akun ini dinonaktifkan." }, { status: 403 });
     let body;
     try {
       body = await req.json();
@@ -58,10 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine application base URL for APP_PRIVATE evidence links
-    const origin =
-      req.nextUrl.origin ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      "http://localhost:3000";
+    const origin = getServerEnv().APP_BASE_URL;
 
     // Generate ExcelJS workbook buffer
     const buffer = await generateWorkbook(data, {
@@ -113,7 +115,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "INTERNAL_ERROR",
-        message: error.message || "Terjadi kesalahan saat memproses ekspor laporan.",
+        message: "Laporan belum dapat dibuat. Silakan coba lagi.",
       },
       { status: 500 }
     );

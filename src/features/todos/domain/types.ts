@@ -12,7 +12,7 @@ export interface TodoStage {
   requiresEvidenceOnEnter: boolean;
   requiresEvidenceOnExit: boolean;
   minimumEvidenceCount: number;
-  allowedEvidenceTypes: ("PHOTO" | "LINK")[] | null;
+  allowedEvidenceTypes: ("PHOTO" | "LINK" | "GITHUB_COMMIT")[] | null;
   requiresNote: boolean;
   isTerminal: boolean;
 }
@@ -58,7 +58,7 @@ export interface TodoEvidenceItem {
   stageId: string | null;
   attachedAt: string;
   title: string | null;
-  type: "PHOTO" | "LINK";
+  type: "PHOTO" | "LINK" | "GITHUB_COMMIT";
   status: string;
   url?: string | null;
 }

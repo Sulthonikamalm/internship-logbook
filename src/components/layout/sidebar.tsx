@@ -2,104 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  CalendarCheck2,
-  KanbanSquare,
-  Image as ImageIcon,
-  BookOpen,
-  FileSpreadsheet,
-  Link2,
-  Settings,
-  PlusCircle,
-  Clock,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/features/auth/components/logout-button";
+import { Brand } from "./brand";
+import { navigationItems, isCurrentPath } from "./navigation";
 
-export const navigationItems = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Activity", href: "/activities", icon: CalendarCheck2 },
-  { name: "Todo Kanban", href: "/todos", icon: KanbanSquare },
-  { name: "Evidence", href: "/evidence", icon: ImageIcon },
-  { name: "Logbook", href: "/logbook", icon: BookOpen },
-  { name: "Reports", href: "/reports", icon: FileSpreadsheet },
-  { name: "Integrasi", href: "/integrations", icon: Link2 },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
+export { navigationItems } from "./navigation";
 
-export function Sidebar() {
+export function Sidebar({ displayName }: { displayName?: string }) {
   const pathname = usePathname();
-
-  return (
-    <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col border-r border-border bg-card">
-      {/* Brand Header */}
-      <div className="flex h-16 items-center px-6 border-b border-border">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-sm">
-            IF
-          </div>
-          <div>
-            <span className="font-bold text-lg text-foreground tracking-tight">
-              Intern<span className="text-primary">Flow</span>
-            </span>
-            <span className="block text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">
-              Logbook & Evidence
-            </span>
-          </div>
-        </Link>
-      </div>
-
-      {/* Quick Action Button */}
-      <div className="p-4">
-        <Button asChild className="w-full justify-start gap-2 shadow-sm font-medium">
-          <Link href="/activities/new?quick=1">
-            <PlusCircle className="h-4 w-4" />
-            <span>+ Quick Activity</span>
-          </Link>
-        </Button>
-      </div>
-
-      {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-        {navigationItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-secondary text-secondary-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )}
-              />
-              <span>{item.name}</span>
-            </Link>
-          );
+  return <aside className="glass-panel fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r md:flex lg:w-64">
+    <div className="px-6 pt-6 pb-5"><Brand /></div>
+    <div className="px-5 pb-7"><Button asChild className="w-full gap-2"><Link href="/activities/new?quick=1"><Plus size={18} />Catat activity</Link></Button></div>
+    <nav aria-label="Navigasi utama" className="flex-1 overflow-y-auto px-4">
+      {(["work", "tools"] as const).map(group => <div key={group} className="mb-7 space-y-1">
+        <p className="eyebrow px-3 pb-2">{group === "work" ? "Workspace" : "Kelola"}</p>
+        {navigationItems.filter(item => item.group === group).map(item => {
+          const active = isCurrentPath(pathname, item.href);
+          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/70 hover:text-foreground")}>
+            <item.icon size={19} strokeWidth={1.8} aria-hidden="true" />{item.name}
+          </Link>;
         })}
-      </div>
-
-      {/* Footer / System Status */}
-      <div className="border-t border-border p-4 bg-muted/30">
-        <LogoutButton />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="h-3.5 w-3.5 text-primary" />
-          <span>Internship Period: 2026</span>
-        </div>
-      </div>
-    </aside>
-  );
+      </div>)}
+    </nav>
+    <div className="mx-5 border-t border-border py-5">
+      {displayName && <p className="mb-2 truncate px-2 text-sm font-medium">{displayName}</p>}
+      <LogoutButton />
+    </div>
+  </aside>;
 }

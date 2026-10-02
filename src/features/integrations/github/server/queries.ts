@@ -3,6 +3,8 @@ import "server-only";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
 import type { GitHubConnection, GitHubCommit, CommitFilterParams } from "../types";
+import { commitFilterSchema } from "../schemas/github.schema";
+import { utcRangeForLocalDay } from "@/features/evidence/domain/date";
 
 export async function getGitHubConnection(): Promise<GitHubConnection | null> {
   const user = await requireActiveUser();
@@ -14,7 +16,8 @@ export async function getGitHubConnection(): Promise<GitHubConnection | null> {
     .eq("user_id", user.userId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) throw new Error("Status GitHub belum dapat dimuat.");
+  if (!data) return null;
 
   return {
     id: data.id,
@@ -36,8 +39,8 @@ export async function listGitHubCommits(
   const user = await requireActiveUser();
   const supabase = await createClient();
 
-  const page = Math.max(1, params.page || 1);
-  const limit = Math.min(50, Math.max(1, params.limit || 20));
+  const input = commitFilterSchema.parse(params);
+  const { page, limit } = input;
 
   let query = supabase
     .from("github_commits")
@@ -47,18 +50,17 @@ export async function listGitHubCommits(
     )
     .eq("user_id", user.userId);
 
-  if (params.repository) {
-    query = query.eq("repository_name", params.repository);
+  if (input.repository) {
+    query = query.eq("repository_name", input.repository);
   }
 
-  if (params.search) {
-    query = query.ilike("message", `%${params.search}%`);
+  if (input.search) {
+    query = query.ilike("message", `%${input.search.replace(/[%_\\]/g, "\\$&")}%`);
   }
 
-  if (params.date) {
-    const start = `${params.date}T00:00:00.000Z`;
-    const end = `${params.date}T23:59:59.999Z`;
-    query = query.gte("author_date", start).lte("author_date", end);
+  if (input.date) {
+    const { start, end } = utcRangeForLocalDay(input.date, user.timezone);
+    query = query.gte("author_date", start).lt("author_date", end);
   }
 
   const { data, error, count } = await query
@@ -67,7 +69,7 @@ export async function listGitHubCommits(
 
   if (error) {
     console.error("Error listing github commits:", error.message);
-    return { items: [], count: 0 };
+    throw new Error("Commit belum dapat dimuat. Coba lagi.");
   }
 
   const items: GitHubCommit[] = (data || []).map((row) => ({

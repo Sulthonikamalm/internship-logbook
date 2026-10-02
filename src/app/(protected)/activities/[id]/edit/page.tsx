@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { getActivity } from "@/features/activity/server/get-activity";
 import { ActivityForm } from "@/features/activity/components/activity-form";
+import { PageHeader } from "@/components/ui/page-header";
 
 import { safeRedirect } from "@/lib/auth/safe-redirect";
 
@@ -22,8 +23,8 @@ export default async function EditActivityPage({
   const backUrl = returnTo || `/activities/${id}`;
 
   return <section className="mx-auto max-w-2xl space-y-6">
-    <div><Link href={backUrl} className="text-sm text-primary underline">← Kembali</Link>
-      <h1 className="mt-2 text-2xl font-bold">Edit aktivitas</h1></div>
-    <ActivityForm userId={user.userId} timezone={user.timezone} activity={activity} returnTo={returnTo} />
+    <Link href={backUrl} className="inline-flex min-h-11 items-center text-sm text-primary">← Kembali</Link>
+    <PageHeader title="Edit Activity" />
+    <div className="surface p-5 sm:p-6"><ActivityForm userId={user.userId} timezone={user.timezone} activity={activity} returnTo={returnTo} /></div>
   </section>;
 }

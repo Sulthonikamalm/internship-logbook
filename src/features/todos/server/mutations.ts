@@ -1,367 +1,69 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
-
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  createTodoSchema,
-  updateTodoSchema,
-  reorderTodoSchema,
-  attachTodoEvidenceSchema,
-  type CreateTodoInput,
-  type UpdateTodoInput,
-  type ReorderTodoInput,
-  type AttachTodoEvidenceInput,
-} from "../schemas/todo.schema";
-import { calculateEvidenceHealth } from "../domain/health";
+import { createTodoSchema, updateTodoSchema, reorderTodoSchema, attachTodoEvidenceSchema, type CreateTodoInput, type UpdateTodoInput, type ReorderTodoInput, type AttachTodoEvidenceInput } from "../schemas/todo.schema";
+import { toTodoItem } from "../domain/row";
+import type { TodoItem } from "../domain/types";
 
-export type MutationResponse<T = any> =
-  | { ok: true; data: T; message: string }
-  | { ok: false; code: string; message: string };
-
-/**
- * Creates a new Todo in the specified stage (defaults to BACKLOG).
- */
+export type MutationResponse<T = TodoItem | null> = { ok: true; data: T; message: string } | { ok: false; code: string; message: string };
+function refresh() { revalidatePath("/todos"); revalidatePath("/dashboard"); revalidatePath("/evidence"); }
 export async function createTodo(rawInput: CreateTodoInput): Promise<MutationResponse> {
-  const parseResult = createTodoSchema.safeParse(rawInput);
-  if (!parseResult.success) {
-    return {
-      ok: false,
-      code: "VALIDATION_ERROR",
-      message: parseResult.error.issues[0]?.message || "Input Todo tidak valid.",
-    };
-  }
-
   const user = await requireActiveUser();
-  const supabase = await createClient();
-  const input = parseResult.data;
-
-  // Resolve stage ID (fallback to BACKLOG if not supplied)
-  let targetStageId = input.stageId;
-  if (!targetStageId) {
-    const { data: backlogStage } = await supabase
-      .from("todo_stages")
-      .select("id")
-      .eq("code", "BACKLOG")
-      .single();
-
-    targetStageId = backlogStage?.id;
-  }
-
-  if (!targetStageId) {
-    return { ok: false, code: "STAGE_NOT_FOUND", message: "Tahap Backlog tidak ditemukan." };
-  }
-
-  // Get max sort order in this stage
-  const { data: maxOrderRow } = await supabase
-    .from("todos")
-    .select("sort_order")
-    .eq("user_id", user.userId)
-    .eq("current_stage_id", targetStageId)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const nextSortOrder = (Number(maxOrderRow?.sort_order) || 0) + 1000;
-
-  const { data: newTodo, error: insertError } = await supabase
-    .from("todos")
-    .insert({
-      user_id: user.userId,
-      title: input.title,
-      description: input.description,
-      priority: input.priority,
-      due_date: input.dueDate,
-      current_stage_id: targetStageId,
-      sort_order: nextSortOrder,
-      evidence_health: "OK",
-      version: 1,
-      deleted_at: null,
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    console.error("[todos.createTodo] Insert error:", insertError.message);
-    return { ok: false, code: "ERROR", message: "Gagal membuat Todo." };
-  }
-
-  try {
-    const admin = createAdminClient();
-    await admin.from("audit_logs").insert({
-      actor_user_id: user.userId,
-      entity_type: "todo",
-      entity_id: newTodo.id,
-      action: "todo.created",
-      metadata: { title: input.title, priority: input.priority },
-    });
-  } catch (err) {
-    console.warn("[todos.createTodo] Audit log warning:", err);
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: newTodo, message: "Todo berhasil dibuat." };
+  const parsed = createTodoSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: parsed.error.issues[0].message };
+  const db = await createClient();
+  let query = db.from("todo_stages").select("id,code");
+  query = parsed.data.stageId ? query.eq("id", parsed.data.stageId) : query.eq("code", "BACKLOG");
+  const { data: stage } = await query.maybeSingle();
+  if (!stage || !["BACKLOG", "TODO"].includes(stage.code)) return { ok: false, code: "INVALID_STAGE", message: "Todo baru dimulai dari Backlog atau To Do." };
+  const { data: last, error: orderError } = await db.from("todos").select("sort_order").eq("user_id", user.userId).eq("current_stage_id", stage.id).is("deleted_at", null).order("sort_order", { ascending: false }).limit(1).maybeSingle();
+  if (orderError) return { ok: false, code: "ERROR", message: "Todo belum dapat dibuat. Coba lagi." };
+  const { data, error } = await db.from("todos").insert({ user_id: user.userId, title: parsed.data.title, description: parsed.data.description, priority: parsed.data.priority, due_date: parsed.data.dueDate, current_stage_id: stage.id, sort_order: Number(last?.sort_order ?? 0) + 1000 }).select().single();
+  if (error || !data) return { ok: false, code: "ERROR", message: "Todo belum tersimpan. Coba lagi." };
+  refresh(); return { ok: true, data: toTodoItem(data), message: "Todo dibuat." };
 }
-
-/**
- * Updates Todo details with optimistic version check.
- */
 export async function updateTodo(rawInput: UpdateTodoInput): Promise<MutationResponse> {
-  const parseResult = updateTodoSchema.safeParse(rawInput);
-  if (!parseResult.success) {
-    return {
-      ok: false,
-      code: "VALIDATION_ERROR",
-      message: parseResult.error.issues[0]?.message || "Input edit Todo tidak valid.",
-    };
-  }
-
   const user = await requireActiveUser();
-  const supabase = await createClient();
-  const input = parseResult.data;
-
-  const { data: updated, error: updateError } = await supabase
-    .from("todos")
-    .update({
-      title: input.title,
-      description: input.description,
-      priority: input.priority,
-      due_date: input.dueDate,
-      version: input.expectedVersion + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.id)
-    .eq("user_id", user.userId)
-    .eq("version", input.expectedVersion)
-    .select()
-    .maybeSingle();
-
-  if (updateError || !updated) {
-    return {
-      ok: false,
-      code: "CONFLICT",
-      message: "Todo telah diubah di perangkat lain atau tidak ditemukan.",
-    };
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: updated, message: "Todo berhasil diperbarui." };
+  const parsed = updateTodoSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: parsed.error.issues[0].message };
+  const input = parsed.data; const db = await createClient();
+  const { data, error } = await db.from("todos").update({ title: input.title, description: input.description, priority: input.priority, due_date: input.dueDate }).eq("id", input.id).eq("user_id", user.userId).eq("version", input.expectedVersion).is("deleted_at", null).select().maybeSingle();
+  if (error || !data) return { ok: false, code: "CONFLICT", message: "Todo berubah atau tidak tersedia. Muat ulang sebelum menyimpan." };
+  refresh(); return { ok: true, data: toTodoItem(data), message: "Todo disimpan." };
 }
-
-/**
- * Soft deletes a Todo.
- */
 export async function deleteTodo(todoId: string): Promise<MutationResponse> {
   const user = await requireActiveUser();
-  const supabase = await createClient();
-
-  const { error: delError } = await supabase
-    .from("todos")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", todoId)
-    .eq("user_id", user.userId);
-
-  if (delError) {
-    console.error("[todos.deleteTodo] Delete error:", delError.message);
-    return { ok: false, code: "ERROR", message: "Gagal menghapus Todo." };
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: null, message: "Todo berhasil dihapus." };
+  if (!z.uuid().safeParse(todoId).success) return { ok: false, code: "NOT_FOUND", message: "Todo tidak tersedia." };
+  const db = await createClient();
+  const { data, error } = await db.from("todos").update({ deleted_at: new Date().toISOString() }).eq("id", todoId).eq("user_id", user.userId).is("deleted_at", null).select("id").maybeSingle();
+  if (error || !data) return { ok: false, code: "NOT_FOUND", message: "Todo tidak tersedia atau belum dapat dihapus." };
+  refresh(); return { ok: true, data: null, message: "Todo dihapus." };
 }
-
-/**
- * Reorders a Todo within the same stage.
- */
 export async function reorderTodo(rawInput: ReorderTodoInput): Promise<MutationResponse> {
-  const parseResult = reorderTodoSchema.safeParse(rawInput);
-  if (!parseResult.success) {
-    return { ok: false, code: "VALIDATION_ERROR", message: "Input urutan tidak valid." };
-  }
-
   const user = await requireActiveUser();
-  const supabase = await createClient();
-  const input = parseResult.data;
-
-  const { error: updateError } = await supabase
-    .from("todos")
-    .update({
-      sort_order: input.newSortOrder,
-      version: input.expectedVersion + 1,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", input.todoId)
-    .eq("user_id", user.userId)
-    .eq("version", input.expectedVersion);
-
-  if (updateError) {
-    console.error("[todos.reorderTodo] Error:", updateError.message);
-    return { ok: false, code: "CONFLICT", message: "Gagal memperbarui urutan kartu." };
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: null, message: "Urutan Todo diperbarui." };
+  const parsed = reorderTodoSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: "Urutan tidak valid." };
+  const input = parsed.data; const db = await createClient();
+  const { data, error } = await db.from("todos").update({ sort_order: input.newSortOrder }).eq("id", input.todoId).eq("user_id", user.userId).eq("current_stage_id", input.stageId).eq("version", input.expectedVersion).is("deleted_at", null).select().maybeSingle();
+  if (error || !data) return { ok: false, code: "CONFLICT", message: "Urutan berubah di perangkat lain. Muat ulang untuk melanjutkan." };
+  refresh(); return { ok: true, data: toTodoItem(data), message: "Urutan disimpan." };
 }
-
-/**
- * Attaches an evidence to a Todo.
- */
 export async function attachTodoEvidence(rawInput: AttachTodoEvidenceInput): Promise<MutationResponse> {
-  const parseResult = attachTodoEvidenceSchema.safeParse(rawInput);
-  if (!parseResult.success) {
-    return { ok: false, code: "VALIDATION_ERROR", message: "Input lampiran tidak valid." };
-  }
-
   const user = await requireActiveUser();
-  const supabase = await createClient();
-  const input = parseResult.data;
-
-  // 1. Verify Todo belongs to user and is not deleted
-  const { data: todo } = await supabase
-    .from("todos")
-    .select("id, current_stage_id, evidence_health")
-    .eq("id", input.todoId)
-    .eq("user_id", user.userId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (!todo) {
-    return { ok: false, code: "NOT_FOUND", message: "Todo tidak ditemukan atau sudah dihapus." };
-  }
-
-  // 2. Verify evidence belongs to user and is AVAILABLE
-  const { data: evItem } = await supabase
-    .from("evidences")
-    .select("id, status")
-    .eq("id", input.evidenceId)
-    .eq("user_id", user.userId)
-    .eq("status", "AVAILABLE")
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (!evItem) {
-    return { ok: false, code: "NOT_FOUND", message: "Evidence tidak ditemukan atau belum berstatus SIAP." };
-  }
-
-  // 3. Attach evidence to Todo
-  const { error: insertError } = await supabase.from("todo_evidences").insert({
-    todo_id: input.todoId,
-    evidence_id: input.evidenceId,
-    stage_id: input.stageId || null,
-    attached_by: user.userId,
-  });
-
-  if (insertError) {
-    console.error("[todos.attachEvidence] Insert error:", insertError.message);
-    return { ok: false, code: "ERROR", message: "Gagal melampirkan evidence ke Todo." };
-  }
-
-  // 4. Recalculate health: if Todo is in DONE or REVIEW, recalculate
-  const { data: stage } = await supabase
-    .from("todo_stages")
-    .select("code, minimum_evidence_count")
-    .eq("id", todo.current_stage_id)
-    .maybeSingle();
-
-  if (stage && (stage.code === "DONE" || stage.code === "REVIEW")) {
-    const { data: rels } = await supabase
-      .from("todo_evidences")
-      .select("evidence_id")
-      .eq("todo_id", todo.id)
-      .eq("attached_by", user.userId);
-
-    const relIds = rels?.map((r: any) => r.evidence_id) ?? [];
-    let validCount = 0;
-    if (relIds.length > 0) {
-      const { data: validEvs } = await supabase
-        .from("evidences")
-        .select("id")
-        .in("id", relIds)
-        .eq("user_id", user.userId)
-        .eq("status", "AVAILABLE")
-        .is("deleted_at", null);
-      validCount = validEvs?.length ?? 0;
-    }
-
-    const health = calculateEvidenceHealth(stage.code, validCount, stage.minimum_evidence_count ?? 1);
-    await supabase.from("todos").update({ evidence_health: health }).eq("id", todo.id);
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: null, message: "Evidence berhasil dilampirkan ke Todo." };
+  const parsed = attachTodoEvidenceSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: "Lampiran tidak valid." };
+  const db = await createClient(); const input = parsed.data;
+  const { error } = await db.from("todo_evidences").upsert({ todo_id: input.todoId, evidence_id: input.evidenceId, stage_id: input.stageId ?? null, attached_by: user.userId }, { onConflict: "todo_id,evidence_id,stage_id", ignoreDuplicates: true });
+  if (error) return { ok: false, code: "ERROR", message: "Evidence tidak tersedia atau belum dapat dilampirkan." };
+  refresh(); return { ok: true, data: null, message: "Evidence dilampirkan." };
 }
-
-/**
- * Detaches an evidence from a Todo.
- */
 export async function detachTodoEvidence(relationId: string): Promise<MutationResponse> {
   const user = await requireActiveUser();
-  const supabase = await createClient();
-
-  const { data: rel } = await supabase
-    .from("todo_evidences")
-    .select("todo_id")
-    .eq("id", relationId)
-    .eq("attached_by", user.userId)
-    .maybeSingle();
-
-  if (!rel) {
-    return { ok: false, code: "NOT_FOUND", message: "Lampiran evidence tidak ditemukan." };
-  }
-
-  const { error: delError } = await supabase
-    .from("todo_evidences")
-    .delete()
-    .eq("id", relationId)
-    .eq("attached_by", user.userId);
-
-  if (delError) {
-    return { ok: false, code: "ERROR", message: "Gagal melepas evidence." };
-  }
-
-  // Recalculate health for Todo
-  const { data: todo } = await supabase
-    .from("todos")
-    .select("id, current_stage_id")
-    .eq("id", rel.todo_id)
-    .eq("user_id", user.userId)
-    .maybeSingle();
-
-  if (todo) {
-    const { data: stage } = await supabase
-      .from("todo_stages")
-      .select("code, minimum_evidence_count")
-      .eq("id", todo.current_stage_id)
-      .maybeSingle();
-
-    if (stage && (stage.code === "DONE" || stage.code === "REVIEW")) {
-      const { data: rels } = await supabase
-        .from("todo_evidences")
-        .select("evidence_id")
-        .eq("todo_id", todo.id)
-        .eq("attached_by", user.userId);
-
-      const relIds = rels?.map((r: any) => r.evidence_id) ?? [];
-      let validCount = 0;
-      if (relIds.length > 0) {
-        const { data: validEvs } = await supabase
-          .from("evidences")
-          .select("id")
-          .in("id", relIds)
-          .eq("user_id", user.userId)
-          .eq("status", "AVAILABLE")
-          .is("deleted_at", null);
-        validCount = validEvs?.length ?? 0;
-      }
-
-      const health = calculateEvidenceHealth(stage.code, validCount, stage.minimum_evidence_count ?? 1);
-      await supabase.from("todos").update({ evidence_health: health }).eq("id", todo.id);
-    }
-  }
-
-  revalidatePath("/todos");
-  return { ok: true, data: null, message: "Evidence dilepas dari Todo." };
+  if (!z.uuid().safeParse(relationId).success) return { ok: false, code: "NOT_FOUND", message: "Lampiran tidak tersedia." };
+  const db = await createClient();
+  const { data, error } = await db.from("todo_evidences").delete().eq("id", relationId).eq("attached_by", user.userId).select("id").maybeSingle();
+  if (error || !data) return { ok: false, code: "ERROR", message: "Lampiran belum dapat dilepas. Coba lagi." };
+  refresh(); return { ok: true, data: null, message: "Lampiran dilepas." };
 }

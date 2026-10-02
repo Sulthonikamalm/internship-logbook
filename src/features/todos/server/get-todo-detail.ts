@@ -1,173 +1,29 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
-
+import { z } from "zod";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
-import type {
-  TodoDetailItem,
-  TodoEvidenceItem,
-  TodoRelatedActivity,
-  TodoStage,
-  TodoTransition,
-} from "../domain/types";
+import { toTodoItem, type TodoRow } from "../domain/row";
+import { toTodoStage, type StageRow } from "../domain/stage-row";
+import { readAllRows, relatedOne } from "@/lib/supabase/read-all-rows";
+import type { TodoDetailItem, TodoEvidenceItem, TodoTransition } from "../domain/types";
 
 export async function getTodoDetail(todoId: string): Promise<TodoDetailItem | null> {
-  const user = await requireActiveUser();
+  const user = await requireActiveUser(); if (!z.uuid().safeParse(todoId).success) return null;
   const supabase = await createClient();
-
-  // 1. Fetch Todo
-  const { data: todoData, error: todoError } = await supabase
-    .from("todos")
-    .select("*")
-    .eq("id", todoId)
-    .eq("user_id", user.userId)
-    .is("deleted_at", null)
-    .maybeSingle();
-
-  if (todoError || !todoData) {
-    return null;
-  }
-
-  // 2. Fetch stage
-  const { data: stageData } = await supabase
-    .from("todo_stages")
-    .select("*")
-    .eq("id", todoData.current_stage_id)
-    .single();
-
-  const stage: TodoStage = {
-    id: stageData?.id ?? todoData.current_stage_id,
-    code: stageData?.code ?? "BACKLOG",
-    name: stageData?.name ?? "Backlog",
-    position: stageData?.position ?? 10,
-    requiresEvidenceOnEnter: Boolean(stageData?.requires_evidence_on_enter),
-    requiresEvidenceOnExit: Boolean(stageData?.requires_evidence_on_exit),
-    minimumEvidenceCount: stageData?.minimum_evidence_count ?? 0,
-    allowedEvidenceTypes: stageData?.allowed_evidence_types ?? null,
-    requiresNote: Boolean(stageData?.requires_note),
-    isTerminal: Boolean(stageData?.is_terminal),
-  };
-
-  // 3. Fetch attached evidences
-  const evidences: TodoEvidenceItem[] = [];
-  try {
-    const { data: rels } = await supabase
-      .from("todo_evidences")
-      .select("id, evidence_id, stage_id, attached_at")
-      .eq("todo_id", todoId)
-      .eq("attached_by", user.userId)
-      .order("attached_at", { ascending: false });
-
-    const evidenceIds = rels?.map((r: any) => r.evidence_id) ?? [];
-    if (evidenceIds.length > 0) {
-      const { data: evItems } = await supabase
-        .from("evidences")
-        .select("id, type, title, status, link_evidences(url)")
-        .in("id", evidenceIds)
-        .eq("user_id", user.userId)
-        .is("deleted_at", null);
-
-      const evMap = new Map((evItems ?? []).map((e: any) => [e.id, e]));
-
-      for (const r of rels ?? []) {
-        const item: any = evMap.get(r.evidence_id);
-        if (item) {
-          evidences.push({
-            id: r.id,
-            todoId,
-            evidenceId: item.id,
-            stageId: r.stage_id,
-            attachedAt: r.attached_at,
-            title: item.title,
-            type: item.type,
-            status: item.status,
-            url: item.type === "LINK" ? item.link_evidences?.[0]?.url : null,
-          });
-        }
-      }
-    }
-  } catch (err) {
-    console.error("[todos.getTodoDetail] evidence join error:", err);
-  }
-
-  // 4. Fetch linked activities
-  const activities: TodoRelatedActivity[] = [];
-  try {
-    const { data: actRows } = await supabase
-      .from("activities")
-      .select("id, title, activity_date, start_time, end_time")
-      .eq("todo_id", todoId)
-      .eq("user_id", user.userId)
-      .is("deleted_at", null)
-      .order("activity_date", { ascending: false });
-
-    for (const a of actRows ?? []) {
-      activities.push({
-        id: a.id,
-        title: a.title,
-        activityDate: a.activity_date,
-        startTime: a.start_time,
-        endTime: a.end_time,
-      });
-    }
-  } catch (err) {
-    console.error("[todos.getTodoDetail] activity join error:", err);
-  }
-
-  // 5. Fetch transition history
-  const transitions: TodoTransition[] = [];
-  try {
-    const { data: transRows } = await supabase
-      .from("todo_transitions")
-      .select("id, todo_id, user_id, from_stage_id, to_stage_id, note, evidence_count, idempotency_key, created_at")
-      .eq("todo_id", todoId)
-      .eq("user_id", user.userId)
-      .order("created_at", { ascending: false });
-
-    // Fetch stage names map
-    const { data: allStages } = await supabase.from("todo_stages").select("id, name");
-    const stageNameMap = new Map((allStages ?? []).map((s: any) => [s.id, s.name]));
-
-    for (const t of transRows ?? []) {
-      transitions.push({
-        id: t.id,
-        todoId: t.todo_id,
-        userId: t.user_id,
-        fromStageId: t.from_stage_id,
-        toStageId: t.to_stage_id,
-        note: t.note,
-        evidenceCount: t.evidence_count,
-        idempotencyKey: t.idempotency_key,
-        createdAt: t.created_at,
-        fromStageName: t.from_stage_id ? stageNameMap.get(t.from_stage_id) : undefined,
-        toStageName: stageNameMap.get(t.to_stage_id) ?? "Unknown",
-      });
-    }
-  } catch (err) {
-    console.error("[todos.getTodoDetail] transition join error:", err);
-  }
-
-  return {
-    id: todoData.id,
-    userId: todoData.user_id,
-    title: todoData.title,
-    description: todoData.description,
-    priority: todoData.priority,
-    dueDate: todoData.due_date,
-    currentStageId: todoData.current_stage_id,
-    sortOrder: Number(todoData.sort_order),
-    evidenceHealth: todoData.evidence_health,
-    version: todoData.version,
-    startedAt: todoData.started_at,
-    completedAt: todoData.completed_at,
-    createdAt: todoData.created_at,
-    updatedAt: todoData.updated_at,
-    deletedAt: todoData.deleted_at,
-    evidenceCount: evidences.length,
-    activityCount: activities.length,
-    stage,
-    evidences,
-    activities,
-    transitions,
-  };
+  const todo = await supabase.from("todos").select("*").eq("id", todoId).eq("user_id", user.userId).is("deleted_at", null).maybeSingle();
+  if (todo.error) throw new Error("Detail Todo gagal dimuat."); if (!todo.data) return null;
+  const [stages, evidenceRows, activityRows, history] = await Promise.all([
+    supabase.from("todo_stages").select("*"),
+    readAllRows((from, to) => supabase.from("todo_evidences").select("id,evidence_id,stage_id,attached_at,evidences!inner(id,type,title,status,link_evidences(url),github_evidences(commit_url))").eq("todo_id", todoId).eq("attached_by", user.userId).eq("evidences.user_id", user.userId).is("evidences.deleted_at", null).order("attached_at", { ascending: false }).order("id").range(from, to), "Lampiran Todo gagal dimuat."),
+    readAllRows((from, to) => supabase.from("activities").select("id,title,activity_date,start_time,end_time").eq("todo_id", todoId).eq("user_id", user.userId).is("deleted_at", null).order("activity_date", { ascending: false }).order("id").range(from, to), "Activity terkait gagal dimuat."),
+    readAllRows((from, to) => supabase.from("todo_transitions").select("id,todo_id,user_id,from_stage_id,to_stage_id,note,evidence_count,idempotency_key,created_at").eq("todo_id", todoId).eq("user_id", user.userId).order("created_at", { ascending: false }).order("id").range(from, to), "Histori Todo gagal dimuat."),
+  ]);
+  if (stages.error) throw new Error("Tahapan Todo gagal dimuat.");
+  const stageRows = stages.data as StageRow[]; const currentStage = stageRows.find(row => row.id === todo.data.current_stage_id); if (!currentStage) throw new Error("Tahap Todo tidak tersedia.");
+  const names = new Map(stageRows.map(row => [row.id, row.name]));
+  type EvidenceRow = { id: string; evidence_id: string; stage_id: string | null; attached_at: string; evidences: { id: string; type: TodoEvidenceItem["type"]; title: string | null; status: TodoEvidenceItem["status"]; link_evidences?: { url: string } | { url: string }[]; github_evidences?: { commit_url: string } | { commit_url: string }[] } };
+  const evidences: TodoEvidenceItem[] = (evidenceRows as unknown as EvidenceRow[]).flatMap(row => { const item = relatedOne(row.evidences); return item ? [{ id: row.id, todoId, evidenceId: item.id, stageId: row.stage_id, attachedAt: row.attached_at, title: item.title, type: item.type, status: item.status, url: relatedOne(item.link_evidences)?.url ?? relatedOne(item.github_evidences)?.commit_url ?? null }] : []; });
+  const activities = activityRows.map(row => ({ id: row.id, title: row.title, activityDate: row.activity_date, startTime: row.start_time, endTime: row.end_time }));
+  const transitions: TodoTransition[] = history.map(row => ({ id: row.id, todoId: row.todo_id, userId: row.user_id, fromStageId: row.from_stage_id, toStageId: row.to_stage_id, note: row.note, evidenceCount: row.evidence_count, idempotencyKey: row.idempotency_key, createdAt: row.created_at, fromStageName: names.get(row.from_stage_id), toStageName: names.get(row.to_stage_id) ?? "Tahap tidak tersedia" }));
+  return { ...toTodoItem(todo.data as TodoRow), evidenceCount: new Set(evidences.filter(item => item.status === "AVAILABLE").map(item => item.evidenceId)).size, activityCount: activities.length, stage: toTodoStage(currentStage), evidences, activities, transitions };
 }

@@ -1,15 +1,5 @@
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { AppShell } from "@/components/layout/app-shell";
-import type { AuthContext } from "@/lib/auth/types";
-import React from "react";
-
-/**
- * React context for auth data within the protected layout.
- * Passed from server layout to client components via serializable props.
- */
-export type ProtectedLayoutContext = {
-  user: AuthContext;
-};
 
 /**
  * Protected layout — server-side auth boundary.
@@ -33,17 +23,8 @@ export default async function ProtectedLayout({
   const user = await requireActiveUser();
 
   return (
-    <AppShell>
-      {/* Pass user context to children via cloneElement or context provider */}
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement(child)) {
-          return React.cloneElement(
-            child as React.ReactElement<{ user?: AuthContext }>,
-            { user }
-          );
-        }
-        return child;
-      })}
+    <AppShell displayName={user.displayName}>
+      {children}
     </AppShell>
   );
 }

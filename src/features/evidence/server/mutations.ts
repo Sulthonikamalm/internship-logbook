@@ -94,7 +94,7 @@ export async function deleteEvidence(evidenceId: string, detachAll = false): Pro
   if (error) return { ok: false, message: "Evidence gagal dihapus. Coba lagi." };
   if (!started) return { ok: false, message: "Evidence tidak tersedia." };
   if (started.blocked_count > 0) return { ok: false, code: "ASSIGNED",
-    message: `Evidence terpasang pada ${started.blocked_count} aktivitas.`, count: started.blocked_count };
+    message: `Evidence terpasang pada ${started.blocked_count} Activity/Todo. Tinjau sebelum melepas semua lampiran.`, count: started.blocked_count };
   if (started.status === "DELETED") return { ok: true };
   if (started.type === "PHOTO" && started.drive_file_id) {
     try { await deleteDriveFile(started.drive_file_id); }

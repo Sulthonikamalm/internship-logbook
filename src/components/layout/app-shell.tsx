@@ -4,20 +4,22 @@ import { MobileHeader, MobileBottomNav } from "./mobile-nav";
 
 interface AppShellProps {
   children: React.ReactNode;
+  displayName?: string;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, displayName }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+    <div className="app-canvas min-h-dvh text-foreground">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:p-3">Ke konten utama</a>
       {/* Desktop Left Sidebar */}
-      <Sidebar />
+      <Sidebar displayName={displayName} />
 
       {/* Mobile Top Header */}
       <MobileHeader />
 
       {/* Main Content Area */}
-      <main className="flex-1 md:pl-64 pt-14 md:pt-0 pb-20 md:pb-8 transition-all">
-        <div className="container mx-auto p-4 md:p-8 max-w-6xl">
+      <main id="main-content" tabIndex={-1} className="min-w-0 pt-16 pb-[calc(6rem+env(safe-area-inset-bottom))] md:py-10 md:pl-60 lg:pl-64">
+        <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 md:py-0 lg:px-10">
           {children}
         </div>
       </main>

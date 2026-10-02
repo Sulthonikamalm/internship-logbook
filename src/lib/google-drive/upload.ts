@@ -28,12 +28,13 @@ export async function probePhotoUpload(sessionUrl: string, size: number): Promis
 
 export async function initiatePhotoUpload(input: {
   evidenceId: string; userId: string; folderId: string;
-  storedFilename: string; mimeType: string; size: number;
+  storedFilename: string; mimeType: string; size: number; origin: string;
 }): Promise<string> {
   const response = await driveFetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,mimeType,size,parents,appProperties", {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=UTF-8",
+        Origin: input.origin,
         "X-Upload-Content-Type": input.mimeType,
         "X-Upload-Content-Length": String(input.size) },
       body: JSON.stringify({ name: input.storedFilename, mimeType: input.mimeType,

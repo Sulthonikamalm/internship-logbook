@@ -22,43 +22,24 @@ export async function createActivity(input: CreateActivityInput): Promise<Activi
 
   const supabase = await createClient();
 
-  // Validate todo ownership if todoId is provided
-  if (parsed.data.todoId) {
-    const { data: todo } = await supabase
-      .from("todos")
-      .select("id")
-      .eq("id", parsed.data.todoId)
-      .eq("user_id", user.userId)
-      .is("deleted_at", null)
-      .maybeSingle();
-
-    if (!todo) {
-      return domainFailure("Todo tidak ditemukan, bukan milik Anda, atau telah dihapus.");
-    }
-  }
-
-  const { data, error } = await supabase.rpc("create_activity_idempotent", {
+  const { data, error } = await supabase.rpc("create_activity", {
     p_key: parsed.data.idempotencyKey,
     p_title: parsed.data.title,
     p_description: parsed.data.description,
     p_activity_date: activityDate,
     p_start_time: parsed.data.startTime,
     p_end_time: parsed.data.endTime,
-    p_source: parsed.data.source,
+    p_source: parsed.data.todoId ? "todo" : parsed.data.source,
     p_status: parsed.data.status,
+    p_todo_id: parsed.data.todoId ?? null,
   });
+  if (error?.code === "42501") return domainFailure("Todo atau akun tidak tersedia. Muat ulang sebelum mencoba lagi.");
+  if (error?.message?.includes("IDEMPOTENCY_KEY_REUSED")) return domainFailure("Permintaan ini sudah disimpan dengan isi berbeda. Periksa Activity sebelum membuat catatan baru.");
   if (error || !data) return internalFailure("create", error?.code);
-
-  if (parsed.data.todoId && data?.id) {
-    await supabase
-      .from("activities")
-      .update({ todo_id: parsed.data.todoId })
-      .eq("id", data.id)
-      .eq("user_id", user.userId);
-  }
 
   revalidatePath("/activities");
   revalidatePath("/dashboard");
   revalidatePath("/todos");
+  revalidatePath("/logbook");
   return { ok: true, activity: data as Activity };
 }

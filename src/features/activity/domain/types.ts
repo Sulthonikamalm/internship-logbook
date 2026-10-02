@@ -16,6 +16,7 @@ export type Activity = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  todo_id?: string | null;
 };
 
 export type ActivityActionResult =

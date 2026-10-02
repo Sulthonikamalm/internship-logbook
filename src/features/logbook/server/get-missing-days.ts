@@ -1,7 +1,7 @@
 import "server-only";
 
 import { requireActiveUser } from "@/lib/auth/require-active-user";
-import { createClient } from "@/lib/supabase/server";
+import { getActivityDays } from "./get-activity-days";
 import { localDateAt } from "@/features/activity/domain/date";
 import { evaluateMissingDays } from "../domain/missing-days";
 import type { MissingDaySummary } from "../domain/types";
@@ -26,8 +26,6 @@ export async function getMissingDaysSummary(): Promise<MissingDaySummary> {
     };
   }
 
-  const supabase = await createClient();
-
   const evalEnd = settings.endDate < today ? settings.endDate : today;
 
   // If internship starts in the future
@@ -44,32 +42,12 @@ export async function getMissingDaysSummary(): Promise<MissingDaySummary> {
     };
   }
 
-  // Fetch only non-deleted activities for date evaluation
-  const { data: activities, error } = await supabase
-    .from("activities")
-    .select("id, activity_date, status")
-    .eq("user_id", user.userId)
-    .is("deleted_at", null)
-    .gte("activity_date", settings.startDate)
-    .lte("activity_date", evalEnd);
-
-  if (error) {
-    console.error(`[missing-days] error querying activities: ${error.message}`);
-    return {
-      enabled: true,
-      startDate: settings.startDate,
-      endDate: settings.endDate,
-      totalWorkdays: 0,
-      loggedWorkdays: 0,
-      missingCount: 0,
-      draftCount: 0,
-      missingDays: [],
-    };
-  }
+  const days = await getActivityDays(settings.startDate, evalEnd);
 
   return evaluateMissingDays({
     settings,
-    activities: activities ?? [],
+    activities: days.flatMap(day => day.has_ready ? [{ id: day.activity_date, activity_date: day.activity_date, status: "READY" }]
+      : day.draft_id ? [{ id: day.draft_id, activity_date: day.activity_date, status: "DRAFT" }] : []),
     today,
   });
 }

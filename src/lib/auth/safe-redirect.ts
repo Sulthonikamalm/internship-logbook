@@ -84,3 +84,12 @@ export function safeRedirect(to: unknown): string {
 
   return trimmed;
 }
+
+/** Keeps authentication redirects on this origin and out of a login loop. */
+export function safeLoginRedirect(to: unknown): string {
+  const destination = safeRedirect(to);
+  const pathname = decodeURIComponent(new URL(destination, "http://localhost").pathname);
+  return pathname === "/login" || pathname.startsWith("/login/")
+    ? FALLBACK
+    : destination;
+}

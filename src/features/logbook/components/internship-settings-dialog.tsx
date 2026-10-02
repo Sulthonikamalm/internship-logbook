@@ -1,215 +1,49 @@
 "use client";
-
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Check, Loader2, Settings, X } from "lucide-react";
+import { Check, Loader2, Settings } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { Input } from "@/components/ui/input";
+import { Feedback } from "@/components/ui/feedback";
 import { workingDayNames } from "../domain/settings-schema";
 import type { InternshipSettings } from "../domain/types";
 import { saveInternshipSettingsAction } from "../server/actions";
 
-type Props = {
-  settings: InternshipSettings | null;
-  trigger?: React.ReactNode;
-  isOpenDefault?: boolean;
-};
-
-export function InternshipSettingsDialog({ settings, trigger, isOpenDefault = false }: Props) {
+export function InternshipSettingsDialog({ settings, trigger, isOpenDefault = false }: { settings: InternshipSettings | null; trigger?: React.ReactNode; isOpenDefault?: boolean }) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(isOpenDefault);
-  const [isPending, startTransition] = useTransition();
-
-  const [startDate, setStartDate] = useState(settings?.startDate || "");
-  const [endDate, setEndDate] = useState(settings?.endDate || "");
-  const [workingDays, setWorkingDays] = useState<number[]>(
-    settings?.workingDays && settings.workingDays.length > 0
-      ? settings.workingDays
-      : [1, 2, 3, 4, 5]
-  );
-  const [errorMsg, setErrorMsg] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  function toggleWorkingDay(day: number) {
-    if (workingDays.includes(day)) {
-      if (workingDays.length === 1) {
-        setErrorMsg("Pilih minimal satu hari kerja.");
-        return;
-      }
-      setWorkingDays(workingDays.filter((d) => d !== day));
-    } else {
-      setWorkingDays([...workingDays, day].sort((a, b) => a - b));
-    }
+  const [open, setOpen] = useState(isOpenDefault);
+  const [pending, setPending] = useState(false);
+  const lock = useRef(false);
+  const [startDate, setStartDate] = useState(settings?.startDate ?? "");
+  const [endDate, setEndDate] = useState(settings?.endDate ?? "");
+  const [days, setDays] = useState(settings?.workingDays ?? [1, 2, 3, 4, 5]);
+  const [error, setError] = useState("");
+  function show() {
+    setStartDate(settings?.startDate ?? ""); setEndDate(settings?.endDate ?? ""); setDays(settings?.workingDays ?? [1, 2, 3, 4, 5]); setError(""); setOpen(true);
   }
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setErrorMsg("");
-    setFieldErrors({});
-
-    startTransition(async () => {
-      const res = await saveInternshipSettingsAction({
-        startDate: startDate || null,
-        endDate: endDate || null,
-        workingDays,
-      });
-
-      if (!res.ok) {
-        setErrorMsg(res.message);
-        if (res.fieldErrors) setFieldErrors(res.fieldErrors);
-        return;
-      }
-
-      setIsOpen(false);
-      router.refresh();
-    });
+  async function save(event: React.FormEvent) {
+    event.preventDefault(); if (lock.current) return;
+    lock.current = true; setPending(true); setError("");
+    try {
+      const result = await saveInternshipSettingsAction({ startDate: startDate || null, endDate: endDate || null, workingDays: days });
+      if (!result.ok) { setError(result.message); return; }
+      toast.success("Periode magang disimpan"); setOpen(false); router.refresh();
+    } catch { setError("Pengaturan belum tersimpan. Coba lagi."); }
+    finally { lock.current = false; setPending(false); }
   }
-
-  return (
-    <>
-      {trigger ? (
-        <span onClick={() => setIsOpen(true)} className="cursor-pointer">
-          {trigger}
-        </span>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsOpen(true)}
-          className="gap-2 text-xs"
-        >
-          <Settings className="h-3.5 w-3.5" />
-          <span>Atur Periode Magang</span>
-        </Button>
-      )}
-
-      {isOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
-        >
-          <div className="relative w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-5">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-2 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <div>
-                  <h2 id="settings-dialog-title" className="font-semibold text-foreground text-base">
-                    Pengaturan Periode Magang
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Diperlukan untuk evaluasi hari kosong (missing-day).
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                aria-label="Tutup dialog"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="setting-start-date" className="block text-xs font-medium text-foreground mb-1">
-                    Tanggal Mulai
-                  </label>
-                  <input
-                    id="setting-start-date"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  {fieldErrors.startDate && (
-                    <p className="mt-1 text-[11px] text-destructive">{fieldErrors.startDate}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="setting-end-date" className="block text-xs font-medium text-foreground mb-1">
-                    Tanggal Selesai
-                  </label>
-                  <input
-                    id="setting-end-date"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  {fieldErrors.endDate && (
-                    <p className="mt-1 text-[11px] text-destructive">{fieldErrors.endDate}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  Hari Kerja Aktif
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[1, 2, 3, 4, 5, 6, 7].map((day) => {
-                    const isSelected = workingDays.includes(day);
-                    return (
-                      <button
-                        type="button"
-                        key={day}
-                        onClick={() => toggleWorkingDay(day)}
-                        className={`flex items-center justify-between px-3 py-2 text-xs font-medium rounded-md border transition-all ${
-                          isSelected
-                            ? "border-primary bg-primary/10 text-primary font-semibold"
-                            : "border-border bg-card text-muted-foreground hover:bg-muted"
-                        }`}
-                      >
-                        <span>{workingDayNames[day]}</span>
-                        {isSelected && <Check className="h-3 w-3 text-primary ml-1" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                {fieldErrors.workingDays && (
-                  <p className="mt-1 text-[11px] text-destructive">{fieldErrors.workingDays}</p>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsOpen(false)}
-                  disabled={isPending}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" size="sm" disabled={isPending} className="gap-2">
-                  {isPending ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Menyimpan...</span>
-                    </>
-                  ) : (
-                    <span>Simpan Pengaturan</span>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return <>
+    {trigger ? <Button asChild variant="outline" onClick={show}>{trigger}</Button> : <Button variant="outline" onClick={show} className="gap-2"><Settings size={17} />Atur periode</Button>}
+    <Modal open={open} onClose={() => setOpen(false)} title="Periode magang" description="Tentukan periode dan hari kerja untuk logbook." busy={pending}>
+      <form onSubmit={save} className="space-y-5">
+        <fieldset disabled={pending} className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm font-medium"><span>Mulai</span><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></label><label className="space-y-2 text-sm font-medium"><span>Selesai</span><Input type="date" min={startDate || undefined} value={endDate} onChange={e => setEndDate(e.target.value)} /></label></div>
+          <fieldset><legend className="mb-3 text-sm font-medium">Hari kerja</legend><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{[1,2,3,4,5,6,7].map(day => <button type="button" key={day} aria-pressed={days.includes(day)} onClick={() => setDays(current => current.includes(day) ? current.filter(d => d !== day) : [...current, day].sort())} className={`pressable flex min-h-11 items-center justify-between rounded-xl border px-3 text-xs font-medium ${days.includes(day) ? "border-primary/30 bg-secondary text-primary" : "border-border bg-white text-muted-foreground"}`}>{workingDayNames[day]}{days.includes(day) && <Check size={14} />}</button>)}</div></fieldset>
+        </fieldset>
+        {error && <Feedback>{error}</Feedback>}
+        <div className="flex justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="ghost" disabled={pending} onClick={() => setOpen(false)}>Batal</Button><Button disabled={pending} className="gap-2">{pending && <Loader2 size={16} className="animate-spin" />}{pending ? "Menyimpan…" : "Simpan"}</Button></div>
+      </form>
+    </Modal>
+  </>;
 }

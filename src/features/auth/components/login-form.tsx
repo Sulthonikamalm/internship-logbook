@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type LoginState } from "../actions/login";
@@ -13,20 +12,10 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ nextUrl }: LoginFormProps) {
-  const router = useRouter();
-
   const [state, formAction, isPending] = useActionState<LoginState | null, FormData>(
     loginAction,
     null
   );
-
-  // Redirect on successful login
-  useEffect(() => {
-    if (state?.success && state.redirectTo) {
-      router.push(state.redirectTo);
-      router.refresh();
-    }
-  }, [state, router]);
 
   return (
     <form action={formAction} className="space-y-5" id="login-form">

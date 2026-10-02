@@ -19,11 +19,11 @@ export const createTodoSchema = z.object({
     .nullable()
     .refine((val) => !val || isRealDate(val), "Format tanggal jatuh tempo tidak valid (YYYY-MM-DD).")
     .transform((val) => val || null),
-  stageId: z.string().min(1).optional(),
+  stageId: z.uuid().optional(),
 });
 
 export const updateTodoSchema = z.object({
-  id: z.string().min(1, "ID Todo wajib diisi."),
+  id: z.uuid(),
   title: z
     .string()
     .trim()
@@ -45,10 +45,10 @@ export const updateTodoSchema = z.object({
 });
 
 export const transitionTodoSchema = z.object({
-  todoId: z.string().min(1, "ID Todo wajib diisi."),
-  targetStageId: z.string().min(1, "ID Stage tujuan wajib diisi."),
+  todoId: z.uuid(),
+  targetStageId: z.uuid(),
   expectedVersion: z.number().int().min(1, "Versi Todo tidak valid."),
-  idempotencyKey: z.string().min(1, "Idempotency key wajib disertakan."),
+  idempotencyKey: z.string().min(1, "Idempotency key wajib disertakan.").max(100),
   note: z
     .string()
     .max(1000, "Catatan transisi maksimal 1000 karakter.")
@@ -58,16 +58,16 @@ export const transitionTodoSchema = z.object({
 });
 
 export const reorderTodoSchema = z.object({
-  todoId: z.string().min(1, "ID Todo wajib diisi."),
-  stageId: z.string().min(1, "ID Stage wajib diisi."),
-  newSortOrder: z.number(),
+  todoId: z.uuid(),
+  stageId: z.uuid(),
+  newSortOrder: z.number().finite(),
   expectedVersion: z.number().int().min(1),
 });
 
 export const attachTodoEvidenceSchema = z.object({
-  todoId: z.string().min(1, "ID Todo wajib diisi."),
-  evidenceId: z.string().min(1, "ID Evidence wajib diisi."),
-  stageId: z.string().min(1).optional().nullable(),
+  todoId: z.uuid(),
+  evidenceId: z.uuid(),
+  stageId: z.uuid().optional().nullable(),
 });
 
 export type CreateTodoInput = z.input<typeof createTodoSchema>;

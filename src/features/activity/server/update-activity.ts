@@ -37,5 +37,8 @@ export async function updateActivity(id: string, input: UpdateActivityInput): Pr
   }
   revalidatePath("/activities");
   revalidatePath(`/activities/${id}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/logbook");
+  revalidatePath("/todos");
   return { ok: true, activity: data as Activity };
 }

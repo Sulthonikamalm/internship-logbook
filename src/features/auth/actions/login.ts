@@ -1,13 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { loginSchema } from "../schemas/login";
-import { safeRedirect } from "@/lib/auth/safe-redirect";
+import { safeLoginRedirect } from "@/lib/auth/safe-redirect";
 import { ErrorCode, createAppError, mapToAppError, type AppError } from "@/lib/errors";
 
 export type LoginState = {
   success: boolean;
-  redirectTo?: string;
   error?: AppError;
   fieldErrors?: {
     email?: string[];
@@ -66,18 +66,14 @@ export async function loginAction(
       };
     }
 
-    // Determine safe redirect
-    const next = formData.get("next");
-    const redirectTo = safeRedirect(next);
-
-    return {
-      success: true,
-      redirectTo,
-    };
   } catch (err) {
     return {
       success: false,
       error: mapToAppError(err),
     };
   }
+
+  // Next redirects throw; keep this outside error handling and let the action
+  // navigate after persisting cookies, without a competing client refresh.
+  redirect(safeLoginRedirect(formData.get("next")));
 }

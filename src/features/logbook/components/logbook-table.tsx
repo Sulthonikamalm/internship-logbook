@@ -84,7 +84,7 @@ export function LogbookDesktopTable({ rows, page, pageSize, returnToUrl }: Props
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Link
                           href={`/activities/${row.id}?returnTo=${returnToParam}`}
-                          className="font-semibold text-foreground hover:text-primary hover:underline transition-colors break-words line-clamp-2"
+                          className="inline-flex min-h-11 items-center font-semibold text-foreground hover:text-primary break-words"
                         >
                           {row.title}
                         </Link>
@@ -92,11 +92,6 @@ export function LogbookDesktopTable({ rows, page, pageSize, returnToUrl }: Props
                           <Badge variant="warning" className="text-[10px] px-1.5 py-0">
                             Draf
                           </Badge>
-                        )}
-                        {row.source === "quick_capture" && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
-                            Quick
-                          </span>
                         )}
                       </div>
                     </div>
@@ -130,7 +125,7 @@ export function LogbookDesktopTable({ rows, page, pageSize, returnToUrl }: Props
                       asChild
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      className="size-11 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
                       title="Edit aktivitas"
                     >
                       <Link href={`/activities/${row.id}/edit?returnTo=${returnToParam}`}>

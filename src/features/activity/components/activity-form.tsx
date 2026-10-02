@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Feedback } from "@/components/ui/feedback";
 import { createActivity } from "../server/create-activity";
 import { updateActivity } from "../server/update-activity";
 import { localDateAt, maxActivityDate } from "../domain/date";
@@ -27,6 +30,7 @@ type Props = {
   initialDescription?: string;
   todoId?: string;
   returnTo?: string;
+  onBusyChange?: (busy: boolean) => void;
 };
 
 export function ActivityForm({
@@ -39,9 +43,11 @@ export function ActivityForm({
   initialDescription,
   todoId,
   returnTo,
+  onBusyChange,
 }: Props) {
   const router = useRouter();
-  const draftId = activity ? `edit-${activity.id}` : quick ? "quick" : "new";
+  const draftId = activity ? `edit-${activity.id}` : todoId ? `todo-${todoId}` : quick ? "quick" : "new";
+  const source = activity?.source ?? (todoId ? "todo" : quick ? "quick_capture" : "manual");
   const today = localDateAt(new Date(), timezone);
   const initialDateResolved = initialDate && isRealDate(initialDate) ? initialDate : today;
   const initial: FormValues = {
@@ -62,6 +68,8 @@ export function ActivityForm({
   const keyRef = useRef<string>(crypto.randomUUID());
   const valuesRef = useRef(values);
   const dirtyRef = useRef(dirty);
+  const locked = useRef(false);
+  const versionRef = useRef(activity?.version);
 
   useEffect(() => {
     valuesRef.current = values;
@@ -82,19 +90,19 @@ export function ActivityForm({
     if (!draftChecked || restore || !dirty) return;
     const timer = window.setTimeout(() => {
       const saved = saveActivityDraft(userId, draftId, {
-        ...values, source: quick ? "quick_capture" : "manual",
+        ...values, source, baseVersion: versionRef.current, todoId,
         idempotencyKey: keyRef.current, savedAt: new Date().toISOString(),
       });
       if (!saved) setMessage("Draf lokal tidak dapat disimpan di perangkat ini.");
     }, 4000);
     return () => window.clearTimeout(timer);
-  }, [values, dirty, draftChecked, restore, userId, draftId, quick]);
+  }, [values, dirty, draftChecked, restore, userId, draftId, source, todoId]);
 
   useEffect(() => {
     function preserveDraft() {
       if (!dirtyRef.current) return;
       saveActivityDraft(userId, draftId, {
-        ...valuesRef.current, source: quick ? "quick_capture" : "manual",
+        ...valuesRef.current, source, baseVersion: versionRef.current, todoId,
         idempotencyKey: keyRef.current, savedAt: new Date().toISOString(),
       });
     }
@@ -109,9 +117,11 @@ export function ActivityForm({
       window.removeEventListener("beforeunload", beforeUnload);
       window.removeEventListener("pagehide", preserveDraft);
     };
-  }, [userId, draftId, quick]);
+  }, [userId, draftId, source, todoId]);
 
   function change<K extends keyof FormValues>(field: K, value: FormValues[K]) {
+    valuesRef.current = { ...valuesRef.current, [field]: value };
+    dirtyRef.current = true;
     setValues((current) => ({ ...current, [field]: value }));
     setDirty(true);
     setErrors((current) => ({ ...current, [field]: "" }));
@@ -120,8 +130,7 @@ export function ActivityForm({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
-    const source: "quick_capture" | "manual" = quick ? "quick_capture" : "manual";
+    if (locked.current || restore) return;
     const input = {
       ...values,
       description: values.description,
@@ -135,11 +144,15 @@ export function ActivityForm({
         [String(issue.path[0] ?? "form"), issue.message])));
       return;
     }
+    locked.current = true;
+    saveActivityDraft(userId, draftId, { ...values, source, baseVersion: versionRef.current, todoId,
+      idempotencyKey: keyRef.current, savedAt: new Date().toISOString() });
     setPending(true);
+    onBusyChange?.(true);
     setMessage("");
     try {
       const result = activity
-        ? await updateActivity(activity.id, { ...input, expectedVersion: activity.version })
+        ? await updateActivity(activity.id, { ...input, expectedVersion: versionRef.current ?? activity.version })
         : await createActivity({
             ...input,
             status: values.status === "ARCHIVED" ? "DRAFT" : values.status,
@@ -154,19 +167,22 @@ export function ActivityForm({
       removeActivityDraft(userId, draftId);
       dirtyRef.current = false;
       setDirty(false);
+      toast.success("Activity tersimpan");
       const destination = returnTo ? safeRedirect(returnTo) : `/activities/${result.activity.id}`;
       router.push(destination);
       router.refresh();
     } catch {
       setMessage("Respons belum diterima. Coba lagi; kunci penyimpanan yang sama akan dipakai.");
     } finally {
+      locked.current = false;
       setPending(false);
+      onBusyChange?.(false);
     }
   }
 
   function reloadLatest() {
     saveActivityDraft(userId, draftId, {
-      ...valuesRef.current, source: quick ? "quick_capture" : "manual",
+      ...valuesRef.current, source, baseVersion: versionRef.current, todoId,
       idempotencyKey: keyRef.current, savedAt: new Date().toISOString(),
     });
     dirtyRef.current = false;
@@ -177,29 +193,40 @@ export function ActivityForm({
     <form onSubmit={submit} className="space-y-5" noValidate>
       {restore && (
         <div className="rounded-lg border border-primary/40 bg-secondary p-4" role="status">
-          <p className="font-medium">Draf aktivitas sebelumnya ditemukan.</p>
+          <p className="font-medium">Lanjutkan draft sebelumnya?</p>
           <p className="text-sm text-muted-foreground">Disimpan {new Date(restore.savedAt).toLocaleString("id-ID")}.</p>
+          {activity && restore.baseVersion !== activity.version && <div className="mt-3 space-y-2 text-sm">
+            <Feedback tone="warning">Activity telah berubah atau versi draft tidak diketahui. Tinjau kedua catatan sebelum menggabungkan.</Feedback>
+            <details><summary className="min-h-11 cursor-pointer py-3">Bandingkan isi</summary><div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg bg-background p-3"><p className="mb-2 font-medium">Versi tersimpan · v{activity.version}</p><p>{activity.title}</p><p>{activity.activity_date}</p><p className="whitespace-pre-wrap">{activity.description}</p></div>
+              <div className="rounded-lg bg-background p-3"><p className="mb-2 font-medium">Draft lokal</p><p>{restore.title}</p><p>{restore.activityDate}</p><p className="whitespace-pre-wrap">{restore.description}</p></div>
+            </div></details></div>}
           <div className="mt-3 flex gap-3">
             <button type="button" className="text-sm font-semibold text-primary" onClick={() => {
               setValues({ title: restore.title, description: restore.description,
                 activityDate: restore.activityDate, startTime: restore.startTime,
                 endTime: restore.endTime, status: restore.status });
               keyRef.current = restore.idempotencyKey;
+              versionRef.current = activity?.version;
+              valuesRef.current = { title: restore.title, description: restore.description, activityDate: restore.activityDate,
+                startTime: restore.startTime, endTime: restore.endTime, status: restore.status };
+              dirtyRef.current = true;
               setDirty(true); setRestore(null);
-            }}>Pulihkan</button>
+            }}>{activity && restore.baseVersion !== activity.version ? "Gabungkan draft ke versi terbaru" : "Pulihkan"}</button>
             <button type="button" className="text-sm" onClick={() => {
               removeActivityDraft(userId, draftId); setRestore(null);
             }}>Hapus</button>
           </div>
         </div>
       )}
+      <fieldset disabled={pending || Boolean(restore)} className="space-y-5">
       <div>
         <label htmlFor="activity-title" className="mb-1 block text-sm font-medium">
           {quick ? "Catatan singkat" : "Judul aktivitas"}
         </label>
         <input id="activity-title" name="title" value={values.title}
           onChange={(event) => change("title", event.target.value)} maxLength={160}
-          autoFocus={quick} autoComplete="off" aria-invalid={Boolean(errors.title)}
+          autoComplete="off" aria-invalid={Boolean(errors.title)}
           aria-describedby={errors.title ? "title-error" : undefined}
           placeholder={quick ? "Apa yang Anda kerjakan?" : "Contoh: Membuat laporan mingguan"}
           className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" />
@@ -213,7 +240,7 @@ export function ActivityForm({
           className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-base" />
         {errors.activityDate && <p className="mt-1 text-sm text-destructive">{errors.activityDate}</p>}
       </div>
-      <details open={!quick} className="rounded-lg border border-border p-4">
+      <details open={!quick} className="rounded-xl border border-border p-4">
         <summary className="cursor-pointer font-medium">{quick ? "Detail tambahan" : "Rincian aktivitas"}</summary>
         <div className="mt-4 space-y-4">
           <div>
@@ -243,12 +270,12 @@ export function ActivityForm({
             </select></div>
         </div>
       </details>
-      {message && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{message}</p>}
+      </fieldset>
+      {message && <Feedback>{message}</Feedback>}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending}
-          className="rounded-md bg-primary px-5 py-2.5 font-medium text-primary-foreground disabled:opacity-50">
+        <Button type="submit" disabled={pending || Boolean(restore)}>
           {pending ? "Menyimpan..." : "Simpan aktivitas"}
-        </button>
+        </Button>
         {activity && message.includes("perangkat lain") &&
           <button type="button" onClick={reloadLatest} className="text-sm text-primary underline">Muat ulang</button>}
         {dirty && <span className="text-xs text-muted-foreground">Perubahan belum tersimpan</span>}

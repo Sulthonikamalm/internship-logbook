@@ -4,6 +4,12 @@ import { syncGitHubCommits, type SyncCommitsResult } from "./sync-commits";
 import { disconnectGitHub } from "./disconnect";
 import { attachCommitEvidence, type AttachCommitResult } from "./attach-commit-evidence";
 import type { AttachCommitInput } from "../schemas/github.schema";
+import { listGitHubCommits } from "./queries";
+import type { CommitFilterParams } from "../types";
+
+export async function getGitHubCommitPage(params: CommitFilterParams = {}) {
+  return listGitHubCommits(params);
+}
 
 export async function syncGitHubCommitsAction(targetRepo?: string): Promise<SyncCommitsResult> {
   return syncGitHubCommits(targetRepo);

@@ -6,10 +6,12 @@ const draftSchema = z.object({
   activityDate: z.string(),
   startTime: z.string(),
   endTime: z.string(),
-  source: z.enum(["manual", "quick_capture"]),
+  source: z.enum(["manual", "quick_capture", "todo"]),
   status: z.enum(["DRAFT", "READY", "ARCHIVED"]),
   idempotencyKey: z.uuid(),
   savedAt: z.string(),
+  baseVersion: z.number().int().min(1).optional(),
+  todoId: z.uuid().optional(),
 }).strict();
 
 export type ActivityDraft = z.infer<typeof draftSchema>;

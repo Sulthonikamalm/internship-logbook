@@ -31,6 +31,18 @@ vi.mock("@/lib/auth/require-active-user", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
+    rpc: async (name: string, params: { p_from: string; p_to: string }) => {
+      if (name !== "get_activity_days") throw new Error("Unexpected RPC");
+      const dates = new Map<string, { activity_date: string; has_ready: boolean; draft_id: string | null }>();
+      for (const row of fakeDb.activities) {
+        if (row.user_id !== testUser.userId || row.deleted_at || row.activity_date < params.p_from || row.activity_date > params.p_to) continue;
+        const day = dates.get(row.activity_date) ?? { activity_date: row.activity_date, has_ready: false, draft_id: null };
+        if (row.status === "READY" || row.status === "ARCHIVED") day.has_ready = true;
+        if (row.status === "DRAFT") day.draft_id ??= row.id;
+        dates.set(row.activity_date, day);
+      }
+      return { data: [...dates.values()], error: null };
+    },
     from: (table: string) => {
       let isHead = false;
       const filters: { type: string; field: string; value?: any }[] = [];

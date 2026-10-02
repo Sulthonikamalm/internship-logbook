@@ -78,9 +78,9 @@ export function TimelineDayStrip({
     <div className="rounded-xl border border-border/70 bg-card p-3 shadow-2xs">
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/50 text-[11px] text-muted-foreground">
         <span className="font-semibold uppercase tracking-wider text-foreground">
-          Ringkasan Hari ({days.length} hari)
+          {days.length} hari
         </span>
-        <span className="text-[10px]">Klik tanggal untuk filter harian</span>
+        <span>Pilih tanggal</span>
       </div>
 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
@@ -88,11 +88,12 @@ export function TimelineDayStrip({
           <Link
             key={item.date}
             href={getDayUrl(item.date)}
-            className={`flex flex-col items-center justify-center min-w-[38px] px-1.5 py-1.5 rounded-lg border text-center transition-all ${
+            aria-current={item.isSelected ? "date" : undefined}
+            className={`flex min-h-14 min-w-11 flex-col items-center justify-center px-1.5 py-1.5 rounded-lg border text-center ${
               item.isSelected
-                ? "border-primary bg-primary text-primary-foreground font-bold shadow-xs scale-105"
+                ? "border-primary bg-primary text-primary-foreground font-bold"
                 : item.hasActivity
-                ? "border-emerald-200 bg-emerald-50/60 text-emerald-900 hover:bg-emerald-100"
+                ? "border-border bg-secondary text-primary"
                 : item.isMissing
                 ? "border-amber-200 bg-amber-50/60 text-amber-900 hover:bg-amber-100"
                 : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/60"

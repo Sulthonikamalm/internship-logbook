@@ -20,7 +20,7 @@ export async function getInternshipSettings(): Promise<InternshipSettings | null
 
   if (error) {
     console.error(`[settings.get] database error: ${error.message} (${error.code})`);
-    return null;
+    throw new Error("Pengaturan magang belum dapat dimuat.");
   }
 
   if (!data) return null;

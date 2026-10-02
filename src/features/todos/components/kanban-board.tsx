@@ -1,22 +1,13 @@
 "use client";
-
-import { useState, useMemo } from "react";
+import { startTransition, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragStartEvent,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import { DndContext, DragOverlay, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Plus, Search, Filter, AlertCircle, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import type { TodoItem, TodoStage, TodoDetailItem } from "../domain/types";
 import { isTransitionAllowed } from "../domain/matrix";
 import { transitionTodo } from "../server/transition-todo";
@@ -28,454 +19,95 @@ import { CreateTodoDialog } from "./create-todo-dialog";
 import { TodoDetailDrawer } from "./todo-detail-drawer";
 import { EvidenceGateModal } from "./evidence-gate-modal";
 
-export function KanbanBoard({
-  initialStages,
-  initialTodos,
-  today,
-}: {
-  initialStages: TodoStage[];
-  initialTodos: TodoItem[];
-  today: string;
-}) {
+export function KanbanBoard({ initialStages: stages, initialTodos, today, initialCreate = false, initialTodoId = null }: { initialStages: TodoStage[]; initialTodos: TodoItem[]; today: string; initialCreate?: boolean; initialTodoId?: string | null }) {
   const router = useRouter();
-  const [stages] = useState<TodoStage[]>(initialStages);
-  const [todos, setTodos] = useState<TodoItem[]>(initialTodos);
-  const [activeTodo, setActiveTodo] = useState<TodoItem | null>(null);
-
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
-
-  // Dialogs & Drawers
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createStageId, setCreateStageId] = useState<string | undefined>(undefined);
-
-  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
-  const [detailData, setDetailData] = useState<TodoDetailItem | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  // Evidence Gate Rejection Modal
-  const [gateModalState, setGateModalState] = useState<{
-    isOpen: boolean;
-    todoId: string;
-    targetStageName: string;
-    minimumRequired: number;
-    currentCount: number;
-  }>({
-    isOpen: false,
-    todoId: "",
-    targetStageName: "",
-    minimumRequired: 1,
-    currentCount: 0,
-  });
-
-  // Transient feedback
-  const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  // DnD Sensors: distance constraint prevents accidental drags on click or scroll
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 6,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // Filtered Todos
-  const filteredTodos = useMemo(() => {
-    return todos.filter((t) => {
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = t.title.toLowerCase().includes(q);
-        const matchDesc = t.description?.toLowerCase().includes(q);
-        if (!matchTitle && !matchDesc) return false;
-      }
-
-      if (priorityFilter !== "ALL" && t.priority !== priorityFilter) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [todos, searchQuery, priorityFilter]);
-
-  // Group Todos by stage
-  const todosByStage = useMemo(() => {
-    const map = new Map<string, TodoItem[]>();
-    for (const stage of stages) {
-      map.set(stage.id, []);
-    }
-    for (const todo of filteredTodos) {
-      const list = map.get(todo.currentStageId);
-      if (list) {
-        list.push(todo);
-      }
+  const [todos, optimistic] = useOptimistic(initialTodos, (current, change: { id: string; stageId?: string; sortOrder?: number }) => current.map(todo => todo.id === change.id ? { ...todo, currentStageId: change.stageId ?? todo.currentStageId, sortOrder: change.sortOrder ?? todo.sortOrder } : todo));
+  const [active, setActive] = useState<TodoItem | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null); const lock = useRef(false);
+  const [query, setQuery] = useState(""); const [priority, setPriority] = useState("ALL");
+  const [mobileStage, setMobileStage] = useState(stages[0]?.id);
+  const [noteRequest, setNoteRequest] = useState<{ todo: TodoItem; stageId: string; stageName: string } | null>(null);
+  const [note, setNote] = useState("");
+  const requests = useRef(new Map<string, string>());
+  const [create, setCreate] = useState({ open: initialCreate, stageId: undefined as string | undefined, session: 0 });
+  const [selected, setSelected] = useState<string | null>(initialTodoId);
+  const [detail, setDetail] = useState<TodoDetailItem | null>(null); const [detailError, setDetailError] = useState(""); const [detailRevision, setDetailRevision] = useState(0);
+  const [gate, setGate] = useState<{ todoId: string; stage: string; minimum: number; current: number } | null>(null);
+  const detailVersion = initialTodos.find(todo => todo.id === selected)?.version;
+  useEffect(() => {
+    if (!selected) return;
+    let valid = true;
+    getTodoDetail(selected).then(result => { if (valid) { setDetail(result); setDetailError(result ? "" : "Todo tidak ditemukan."); } }).catch(() => { if (valid) setDetailError("Detail belum dapat dimuat. Coba lagi."); });
+    return () => { valid = false; };
+  }, [selected, detailVersion, detailRevision]);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const grouped = useMemo(() => {
+    const map = new Map(stages.map(stage => [stage.id, [] as TodoItem[]]));
+    for (const todo of [...todos].sort((a,b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))) {
+      if (priority !== "ALL" && todo.priority !== priority) continue;
+      if (query.trim() && !`${todo.title} ${todo.description ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())) continue;
+      map.get(todo.currentStageId)?.push(todo);
     }
     return map;
-  }, [stages, filteredTodos]);
-
-  // Handle Drag Start
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const found = todos.find((t) => t.id === active.id);
-    if (found) {
-      setActiveTodo(found);
-    }
-  };
-
-  // Handle Drag End
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTodo(null);
-
-    if (!over) return;
-
-    const activeId = String(active.id);
-    const draggedTodo = todos.find((t) => t.id === activeId);
-    if (!draggedTodo) return;
-
-    // Determine target stage: over could be a column (stage.id) or another card (card.id)
-    let targetStageId: string | null = null;
-    const overData = over.data.current;
-
-    if (overData?.type === "Stage") {
-      targetStageId = String(over.id);
-    } else if (overData?.type === "Todo") {
-      targetStageId = overData.stageId || overData.todo?.currentStageId;
-    }
-
-    if (!targetStageId) return;
-
-    const fromStage = stages.find((s) => s.id === draggedTodo.currentStageId);
-    const toStage = stages.find((s) => s.id === targetStageId);
-
-    if (!fromStage || !toStage) return;
-
-    // 1. Moving between different stages
-    if (fromStage.id !== toStage.id) {
-      // Validate matrix client-side first
-      if (!isTransitionAllowed(fromStage.code, toStage.code)) {
-        setNotification({
-          type: "error",
-          message: `Transisi langsung dari ${fromStage.name} ke ${toStage.name} tidak diizinkan.`,
-        });
-        setTimeout(() => setNotification(null), 4000);
-        return;
-      }
-
-      // Optimistic UI move
-      const originalTodos = [...todos];
-      setTodos((prev) =>
-        prev.map((t) =>
-          t.id === draggedTodo.id
-            ? { ...t, currentStageId: toStage.id, version: t.version + 1 }
-            : t
-        )
-      );
-
-      // Perform authoritative server transition
+  }, [stages, todos, priority, query]);
+  function open(todo: TodoItem) { setDetail(null); setDetailError(""); setSelected(todo.id); setDetailRevision(value => value + 1); }
+  function refreshDetail() { setDetailRevision(value => value + 1); router.refresh(); }
+  function closeDetail() { setSelected(null); setDetail(null); if (initialTodoId) router.replace("/todos", { scroll: false }); }
+  function changeStage(todo: TodoItem, stageId: string, transitionNote?: string) {
+    if (lock.current) return;
+    const from = stages.find(stage => stage.id === todo.currentStageId); const to = stages.find(stage => stage.id === stageId);
+    if (!from || !to || !isTransitionAllowed(from.code, to.code)) { toast.error("Pilih tahap berikutnya atau sebelumnya."); return; }
+    if (to.requiresNote && !transitionNote?.trim()) { setNote(""); setNoteRequest({ todo, stageId, stageName: to.name }); return; }
+    const request = `${todo.id}:${stageId}:${todo.version}:${transitionNote?.trim() ?? ""}`;
+    if (!requests.current.has(request)) requests.current.set(request, crypto.randomUUID());
+    lock.current = true; setPendingId(todo.id);
+    startTransition(async () => {
+      optimistic({ id: todo.id, stageId });
       try {
-        const res = await transitionTodo({
-          todoId: draggedTodo.id,
-          targetStageId: toStage.id,
-          expectedVersion: draggedTodo.version,
-          idempotencyKey: crypto.randomUUID(),
-        });
-
-        if (res.ok) {
-          // Reconcile version
-          setTodos((prev) =>
-            prev.map((t) =>
-              t.id === draggedTodo.id
-                ? { ...t, version: res.newVersion, currentStageId: res.currentStageId }
-                : t
-            )
-          );
-        } else {
-          // Rollback on rejection
-          setTodos(originalTodos);
-
-          if (res.code === "EVIDENCE_REQUIRED") {
-            setGateModalState({
-              isOpen: true,
-              todoId: draggedTodo.id,
-              targetStageName: toStage.name,
-              minimumRequired: res.minimum ?? 1,
-              currentCount: res.current ?? 0,
-            });
-          } else if (res.code === "CONFLICT") {
-            setNotification({
-              type: "error",
-              message: "Todo telah diubah di perangkat lain. Memperbarui halaman...",
-            });
-            router.refresh();
-          } else {
-            setNotification({ type: "error", message: res.message });
-            setTimeout(() => setNotification(null), 4000);
-          }
-        }
-      } catch {
-        setTodos(originalTodos);
-        setNotification({ type: "error", message: "Gagal memproses transisi ke server." });
-        setTimeout(() => setNotification(null), 4000);
-      }
-    } else {
-      // 2. Reordering within the same stage
-      const stageTodos = todosByStage.get(fromStage.id) || [];
-      const oldIndex = stageTodos.findIndex((t) => t.id === draggedTodo.id);
-      const newIndex = stageTodos.findIndex((t) => t.id === over.id);
-
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        // Calculate new sort_order
-        let newSortOrder: number;
-        if (newIndex === 0) {
-          newSortOrder = (stageTodos[0]?.sortOrder ?? 1000) / 2;
-        } else if (newIndex === stageTodos.length - 1) {
-          newSortOrder = (stageTodos[stageTodos.length - 1]?.sortOrder ?? 1000) + 1000;
-        } else {
-          const prev = stageTodos[newIndex < oldIndex ? newIndex - 1 : newIndex]?.sortOrder ?? 0;
-          const next = stageTodos[newIndex < oldIndex ? newIndex : newIndex + 1]?.sortOrder ?? (prev + 2000);
-          newSortOrder = (prev + next) / 2;
-        }
-
-        // Optimistic update
-        setTodos((prev) =>
-          prev.map((t) => (t.id === draggedTodo.id ? { ...t, sortOrder: newSortOrder } : t))
-        );
-
-        // Call server reorder
-        reorderTodo({
-          todoId: draggedTodo.id,
-          stageId: fromStage.id,
-          newSortOrder,
-          expectedVersion: draggedTodo.version,
-        }).catch(() => {
-          router.refresh();
-        });
-      }
-    }
-  };
-
-  // Mobile Fallback: Direct Move To Target Stage
-  const handleMobileMoveTo = async (todo: TodoItem, targetStageId: string) => {
-    const fromStage = stages.find((s) => s.id === todo.currentStageId);
-    const toStage = stages.find((s) => s.id === targetStageId);
-    if (!fromStage || !toStage) return;
-
-    if (!isTransitionAllowed(fromStage.code, toStage.code)) {
-      setNotification({
-        type: "error",
-        message: `Transisi langsung dari ${fromStage.name} ke ${toStage.name} tidak diizinkan.`,
-      });
-      setTimeout(() => setNotification(null), 4000);
-      return;
-    }
-
-    const originalTodos = [...todos];
-    setTodos((prev) =>
-      prev.map((t) => (t.id === todo.id ? { ...t, currentStageId: toStage.id, version: t.version + 1 } : t))
-    );
-
-    try {
-      const res = await transitionTodo({
-        todoId: todo.id,
-        targetStageId,
-        expectedVersion: todo.version,
-        idempotencyKey: crypto.randomUUID(),
-      });
-
-      if (res.ok) {
-        setTodos((prev) =>
-          prev.map((t) => (t.id === todo.id ? { ...t, version: res.newVersion, currentStageId: res.currentStageId } : t))
-        );
-      } else {
-        setTodos(originalTodos);
-        if (res.code === "EVIDENCE_REQUIRED") {
-          setGateModalState({
-            isOpen: true,
-            todoId: todo.id,
-            targetStageName: toStage.name,
-            minimumRequired: res.minimum ?? 1,
-            currentCount: res.current ?? 0,
-          });
-        } else {
-          setNotification({ type: "error", message: res.message });
-          setTimeout(() => setNotification(null), 4000);
-        }
-      }
-    } catch {
-      setTodos(originalTodos);
-    }
-  };
-
-  // Open Drawer and fetch full detail
-  const handleCardClick = async (todo: TodoItem) => {
-    setSelectedTodoId(todo.id);
-    setIsDrawerOpen(true);
-    setDetailData(null); // loading
-
-    try {
-      const detail = await getTodoDetail(todo.id);
-      if (detail) {
-        setDetailData(detail);
-      }
-    } catch (err) {
-      console.error("[KanbanBoard] Detail fetch error:", err);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* Action & Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border/80 shadow-2xs">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Cari kartu Todo..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-9 text-xs"
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Filter className="h-3.5 w-3.5 text-muted-foreground hidden sm:inline" />
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-2.5 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="ALL">Semua Prioritas</option>
-              <option value="URGENT">Urgent</option>
-              <option value="HIGH">High</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="LOW">Low</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1 text-xs"
-            onClick={() => router.refresh()}
-            title="Muat ulang board"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            className="h-9 gap-1.5 text-xs font-semibold shadow-xs"
-            onClick={() => {
-              setCreateStageId(undefined);
-              setIsCreateOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Tambah Todo</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Transient Notification Banner */}
-      {notification && (
-        <div
-          className={`p-3 rounded-md text-xs flex items-center gap-2 ${
-            notification.type === "error"
-              ? "bg-destructive/10 text-destructive border border-destructive/20"
-              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-          }`}
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{notification.message}</span>
-        </div>
-      )}
-
-      {/* Kanban DnD Canvas */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex items-start gap-4 overflow-x-auto pb-6 pt-1">
-          {stages.map((stage) => (
-            <KanbanColumn
-              key={stage.id}
-              stage={stage}
-              todos={todosByStage.get(stage.id) || []}
-              allStages={stages}
-              today={today}
-              onCardClick={handleCardClick}
-              onMoveTo={handleMobileMoveTo}
-              onCreateInStage={(sId) => {
-                setCreateStageId(sId);
-                setIsCreateOpen(true);
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Drag Overlay during Dragging */}
-        <DragOverlay>
-          {activeTodo ? (
-            <KanbanCard
-              todo={activeTodo}
-              currentStage={stages.find((s) => s.id === activeTodo.currentStageId)!}
-              allStages={stages}
-              today={today}
-              isOverlay
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {/* Create Todo Dialog */}
-      <CreateTodoDialog
-        stages={stages}
-        defaultStageId={createStageId}
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-      />
-
-      {/* Todo Detail Drawer */}
-      {selectedTodoId && (
-        <TodoDetailDrawer
-          todoId={selectedTodoId}
-          initialData={detailData}
-          isOpen={isDrawerOpen}
-          onClose={() => {
-            setIsDrawerOpen(false);
-            setSelectedTodoId(null);
-            setDetailData(null);
-          }}
-        />
-      )}
-
-      {/* Evidence Gate Modal */}
-      <EvidenceGateModal
-        isOpen={gateModalState.isOpen}
-        targetStageName={gateModalState.targetStageName}
-        minimumRequired={gateModalState.minimumRequired}
-        currentCount={gateModalState.currentCount}
-        onClose={() => setGateModalState((prev) => ({ ...prev, isOpen: false }))}
-        onOpenTodoDetail={() => {
-          if (gateModalState.todoId) {
-            const found = todos.find((t) => t.id === gateModalState.todoId);
-            if (found) handleCardClick(found);
-          }
-        }}
-      />
-    </div>
-  );
+        const result = await transitionTodo({ todoId: todo.id, targetStageId: stageId, expectedVersion: todo.version, idempotencyKey: requests.current.get(request)!, note: transitionNote });
+        if (result.ok) { requests.current.delete(request); setNoteRequest(null); setMobileStage(stageId); toast.success(`Dipindah ke ${to.name}`); router.refresh(); }
+        else if (result.code === "EVIDENCE_REQUIRED") { setNoteRequest(null); setGate({ todoId: todo.id, stage: to.name, minimum: result.minimum ?? 1, current: result.current ?? 0 }); }
+        else if (result.code === "NOTE_REQUIRED") { setNoteRequest({ todo, stageId, stageName: to.name }); }
+        else { toast.error(result.message); if (result.code === "CONFLICT") { setNoteRequest(null); router.refresh(); } }
+      } catch { toast.error("Todo belum berpindah. Coba lagi."); }
+      finally { lock.current = false; setPendingId(null); }
+    });
+  }
+  function drop(event: DragEndEvent) {
+    setActive(null); if (!event.over || lock.current) return;
+    const todo = todos.find(item => item.id === event.active.id);
+    const over = event.over;
+    const targetId = over.data.current?.type === "Stage" ? String(over.id) : over.data.current?.stageId as string | undefined;
+    if (!todo || !targetId) return;
+    if (targetId !== todo.currentStageId) { changeStage(todo, targetId); return; }
+    if (over.id === todo.id) return;
+    const ordered = todos.filter(item => item.currentStageId === targetId).sort((a,b) => a.sortOrder-b.sortOrder);
+    const source = ordered.findIndex(item => item.id === todo.id);
+    const destination = over.data.current?.type === "Stage" ? ordered.length - 1 : ordered.findIndex(item => item.id === over.id);
+    if (destination < 0 || source === destination) return;
+    ordered.splice(source,1); ordered.splice(destination,0,todo);
+    const before = ordered[destination-1]?.sortOrder ?? 0; const after = ordered[destination+1]?.sortOrder ?? before + 2000;
+    const sortOrder = (before + after) / 2;
+    lock.current = true; setPendingId(todo.id);
+    startTransition(async () => {
+      optimistic({ id: todo.id, sortOrder });
+      try { const result = await reorderTodo({ todoId: todo.id, stageId: targetId, newSortOrder: sortOrder, expectedVersion: todo.version }); if (!result.ok) toast.error(result.message); router.refresh(); }
+      catch { toast.error("Urutan belum tersimpan. Coba lagi."); }
+      finally { lock.current = false; setPendingId(null); }
+    });
+  }
+  return <div className="space-y-5">
+    <div className="flex flex-col gap-3 sm:flex-row"><Input aria-label="Cari todo" placeholder="Cari todo" value={query} onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1" /><div className="flex gap-2"><select aria-label="Filter prioritas" value={priority} onChange={e => setPriority(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-input bg-white px-3 text-sm"><option value="ALL">Semua prioritas</option><option value="LOW">Rendah</option><option value="MEDIUM">Normal</option><option value="HIGH">Tinggi</option><option value="URGENT">Mendesak</option></select><Button variant="outline" size="icon" onClick={() => router.refresh()} disabled={Boolean(pendingId)} aria-label="Muat ulang todo"><RefreshCw size={17} /></Button><Button onClick={() => setCreate(current => ({ open: true, stageId: undefined, session: current.session+1 }))} disabled={Boolean(pendingId)} className="gap-2"><Plus size={17} />Todo</Button></div></div>
+    <div aria-label="Pilih tahap" className="flex gap-2 overflow-x-auto pb-1 lg:hidden">{stages.map(stage => <button key={stage.id} type="button" aria-pressed={mobileStage === stage.id} onClick={() => setMobileStage(stage.id)} className={`pressable min-h-11 shrink-0 rounded-full px-4 text-xs font-medium ${mobileStage === stage.id ? "bg-primary text-white" : "bg-white text-muted-foreground"}`}>{stage.name} <span className="ml-1 opacity-80">{grouped.get(stage.id)?.length}</span></button>)}</div>
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={event => setActive(todos.find(todo => todo.id === event.active.id) ?? null)} onDragEnd={drop} onDragCancel={() => setActive(null)}>
+      <div className="flex items-start gap-4 overflow-x-auto pb-5">{stages.map(stage => <div key={stage.id} className={`w-full shrink-0 lg:w-auto ${stage.id === mobileStage ? "block" : "hidden lg:block"}`}><KanbanColumn stage={stage} todos={grouped.get(stage.id) ?? []} allStages={stages} today={today} onCardClick={open} onMoveTo={changeStage} pendingId={pendingId} onCreateInStage={stageId => setCreate(current => ({ open: true, stageId, session: current.session+1 }))} /></div>)}</div>
+      <DragOverlay dropAnimation={null}>{active && <KanbanCard todo={active} currentStage={stages.find(stage => stage.id === active.currentStageId)!} allStages={stages} today={today} isOverlay />}</DragOverlay>
+    </DndContext>
+    <CreateTodoDialog onCreated={setMobileStage} key={create.session} stages={stages} defaultStageId={create.stageId} isOpen={create.open} onClose={() => { setCreate(current => ({ ...current, open: false })); if (initialCreate) router.replace("/todos", { scroll: false }); }} />
+    <TodoDetailDrawer key={selected ?? "closed"} isOpen={Boolean(selected)} initialData={detail} error={detailError} onReload={refreshDetail} onClose={closeDetail} />
+    <EvidenceGateModal isOpen={Boolean(gate)} targetStageName={gate?.stage ?? ""} minimumRequired={gate?.minimum ?? 1} currentCount={gate?.current ?? 0} onClose={() => setGate(null)} onOpenTodoDetail={() => { const todo = todos.find(item => item.id === gate?.todoId); if (todo) open(todo); }} />
+    <Modal open={Boolean(noteRequest)} onClose={() => setNoteRequest(null)} title={`Pindah ke ${noteRequest?.stageName ?? "tahap berikutnya"}`} description="Tahap ini memerlukan catatan." busy={Boolean(pendingId)}>
+      <form onSubmit={event => { event.preventDefault(); if (noteRequest) changeStage(noteRequest.todo, noteRequest.stageId, note); }} className="space-y-4"><label className="block space-y-2 text-sm font-medium"><span>Catatan</span><textarea required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} disabled={Boolean(pendingId)} rows={3} className="w-full rounded-xl border bg-background p-3" /></label><Button type="submit" disabled={Boolean(pendingId) || !note.trim()}>{pendingId ? "Memindahkan…" : "Pindahkan"}</Button></form>
+    </Modal>
+  </div>;
 }

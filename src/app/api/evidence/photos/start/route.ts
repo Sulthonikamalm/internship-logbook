@@ -49,7 +49,8 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (previous.status === "UPLOADING" && saved?.session_url
         && isDriveUploadSessionUrl(saved.session_url)) {
-      if (input.resetSession || new Date(saved.expires_at).getTime() <= Date.now()) {
+      // The upload can finish at Drive even when the browser loses the response.
+      // Probe every retry before offering the session again.
         try {
           const state = await probePhotoUpload(saved.session_url, input.size);
           if (state.kind === "COMPLETE") return Response.json({ ok: true, kind: "FINALIZE",
@@ -61,10 +62,6 @@ export async function POST(request: Request): Promise<Response> {
         } catch {
           return jsonError("Status upload belum dapat diperiksa. Coba lagi.", 503);
         }
-      } else {
-      return Response.json({ ok: true, kind: "UPLOAD", evidenceId: previous.id,
-        sessionUrl: saved.session_url }, { headers: { "Cache-Control": "no-store" } });
-      }
     }
   }
 
@@ -93,6 +90,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!previous) {
     const { error } = await supabase.from("evidences").insert({
       id: evidenceId, user_id: user.userId, type: "PHOTO", status: "UPLOADING",
+      title: safeOriginalFilename(input.originalFilename).slice(0, 160) || "Foto activity",
       upload_id: input.uploadId,
     });
     if (error) return jsonError("Terlalu banyak upload aktif atau penyimpanan gagal.", 429);
@@ -126,7 +124,8 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const folderId = await ensureUserMonthFolder(user.userId, localDateAt(new Date(), user.timezone));
     const sessionUrl = await initiatePhotoUpload({ evidenceId, userId: user.userId,
-      folderId, storedFilename: session.stored_filename, mimeType: input.mimeType, size: input.size });
+      folderId, storedFilename: session.stored_filename, mimeType: input.mimeType, size: input.size,
+      origin: request.headers.get("origin")! });
     const { error } = await supabase.from("photo_upload_sessions")
       .update({ drive_folder_id: folderId, session_url: sessionUrl,
         expires_at: new Date(Date.now() + 6 * 86400000).toISOString() })

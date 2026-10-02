@@ -1,66 +1,24 @@
-import Image from "next/image";
-import { GitCommit, ExternalLink } from "lucide-react";
+"use client";
+import Link from "next/link";
+import { GitCommitHorizontal, Link2, ImageOff, ExternalLink } from "lucide-react";
+import { EvidencePhotoPreview } from "./evidence-photo-preview";
+import { Badge } from "@/components/ui/badge";
 import type { SafeEvidence } from "../domain/types";
 
+const statusLabel: Record<string, string> = { AVAILABLE: "Siap", BROKEN: "Tidak tersedia", UPLOADING: "Mengunggah", FAILED: "Upload gagal", ORPHANED: "Perlu diperiksa", DELETE_PENDING: "Penghapusan tertunda", DELETED: "Dihapus" };
 export function EvidenceCard({ item, actions }: { item: SafeEvidence; actions?: React.ReactNode }) {
   const available = item.status === "AVAILABLE";
-  return <article className="overflow-hidden rounded-lg border bg-card">
-    <div className="relative flex h-44 items-center justify-center bg-muted/40 p-4">
-      {item.type === "PHOTO" && available ? (
-        <a href={`/api/media/evidence/${item.id}`} target="_blank" rel="noopener noreferrer"
-            aria-label="Buka foto ukuran penuh" className="block h-full w-full">
-            <Image src={`/api/media/evidence/${item.id}?thumb=1`} alt={item.title || "Foto evidence"}
-              fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain" unoptimized />
-          </a>
-      ) : item.type === "GITHUB_COMMIT" ? (
-        <div className="flex flex-col items-center justify-center text-center space-y-2 max-w-xs">
-          <div className="p-2.5 rounded-full bg-primary/10 text-primary">
-            <GitCommit className="h-6 w-6" />
-          </div>
-          <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded border border-border">
-            {item.githubCommit?.sha ? item.githubCommit.sha.slice(0, 7) : "Commit GitHub"}
-          </span>
-          {item.githubCommit?.repositoryName && (
-            <span className="text-[11px] text-muted-foreground truncate max-w-[200px]">
-              {item.githubCommit.repositoryName}
-            </span>
-          )}
-        </div>
-      ) : (
-        <span className="px-3 text-center text-sm text-muted-foreground">
-          {item.status === "BROKEN" ? "Foto di Drive tidak tersedia" : item.type === "LINK" ? "Tautan" : `Foto ${item.status.toLowerCase()}`}
-        </span>
-      )}
+  const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+  const title = item.title || (item.type === "PHOTO" ? "Foto aktivitas" : item.type === "GITHUB_COMMIT" ? "Commit GitHub" : "Tautan");
+  return <article className="surface-card overflow-hidden">
+    <div className="relative flex h-40 items-center justify-center bg-muted/40">
+      {item.type === "PHOTO" && available ? <EvidencePhotoPreview id={item.id} title={title} /> : item.type === "GITHUB_COMMIT" ? <div className="space-y-2 px-4 text-center"><GitCommitHorizontal size={28} className="mx-auto text-primary" /><p className="font-mono text-xs">{item.githubCommit?.sha?.slice(0, 7) || "GitHub"}</p><p className="max-w-60 truncate text-xs text-muted-foreground">{item.githubCommit?.repositoryName}</p></div>
+        : item.type === "LINK" ? <Link2 size={30} className="text-primary" /> : <div className="px-4 text-center"><ImageOff size={28} className="mx-auto mb-2 text-muted-foreground" /><p className="text-xs text-muted-foreground">Pratinjau tidak tersedia</p></div>}
     </div>
-    <div className="space-y-2 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 break-words font-medium">
-          {item.title || (item.type === "PHOTO" ? "Foto aktivitas" : item.type === "GITHUB_COMMIT" ? "Commit GitHub" : "Tautan")}
-        </h3>
-        <span className="rounded-full bg-secondary px-2 py-1 text-[10px]">{item.status}</span>
-      </div>
-      {item.note && <p className="line-clamp-2 whitespace-pre-wrap text-sm">{item.note}</p>}
-      <p className="text-xs text-muted-foreground">
-        {new Date(item.capturedAt || item.createdAt).toLocaleDateString("id-ID")}
-        {` · ${item.assignmentCount} aktivitas`}
-      </p>
-      {item.type === "LINK" && item.url && available && (
-        <a href={item.url} target="_blank" rel="noopener noreferrer"
-          className="block truncate text-sm text-primary underline">Buka tautan</a>
-      )}
-      {item.type === "GITHUB_COMMIT" && item.url && (
-        <div className="space-y-1">
-          <a href={item.url} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 truncate text-xs text-primary underline">
-            <span>Buka commit di GitHub</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
-          <p className="text-[10px] text-muted-foreground">
-            *Repositori privat memerlukan hak akses di akun GitHub pemeriksa.
-          </p>
-        </div>
-      )}
-      {actions}
+    <div className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><h3 className="min-w-0 break-words text-sm font-semibold"><Link href={`/evidence/${item.id}`} className="flex min-h-11 items-center hover:text-primary">{title}</Link></h3><Badge variant={available ? "secondary" : "outline"} className="shrink-0">{statusLabel[item.status] || item.status}</Badge></div>
+      {item.note && <p className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{item.note}</p>}
+      <p className="text-xs text-muted-foreground">{new Date(item.capturedAt || item.createdAt).toLocaleDateString("id-ID")} · {item.assignmentCount ? `${item.assignmentCount} lampiran` : "Belum terpasang"}</p>
+      <div className="flex items-center justify-between border-t border-border/60 pt-2">{url ? <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 text-sm text-primary">{item.type === "GITHUB_COMMIT" ? "Buka commit" : "Buka tautan"}<ExternalLink size={15} /></a> : <span />}{actions}</div>
     </div>
   </article>;
 }

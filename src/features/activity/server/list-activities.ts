@@ -14,7 +14,7 @@ export async function listActivities(filters: ActivityFilters) {
   let query = supabase.from("activities").select("*", { count: "exact" })
     .eq("user_id", user.userId).is("deleted_at", null)
     .order("activity_date", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false }).order("id", { ascending: false });
   if (filters.search?.trim()) {
     const term = filters.search.trim().slice(0, 100).replace(/[\\%_]/g, "\\$&");
     query = query.ilike("title", `%${term}%`);

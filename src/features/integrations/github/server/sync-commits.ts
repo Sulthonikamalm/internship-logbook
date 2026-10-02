@@ -1,215 +1,88 @@
 import "server-only";
-
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { decryptGitHubToken } from "./token-crypto";
 
 export interface SyncCommitsResult {
   ok: boolean;
-  code?: "SUCCESS" | "NOT_CONNECTED" | "REAUTH_REQUIRED" | "RATE_LIMITED" | "SYNC_ERROR";
+  code?: "SUCCESS" | "NOT_CONNECTED" | "REAUTH_REQUIRED" | "RATE_LIMITED" | "SYNC_ERROR" | "SYNC_IN_PROGRESS" | "REPO_UNAVAILABLE" | "PARTIAL";
   message: string;
   syncedCount?: number;
+  retryAt?: string;
 }
+const repositorySchema = z.object({ id: z.number().int().positive(), full_name: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/), default_branch: z.string().nullable().optional() });
+const commitSchema = z.object({ sha: z.string().regex(/^[0-9a-f]{40}$/), author: z.object({ id: z.number().int() }).nullable(), commit: z.object({ message: z.string(), author: z.object({ date: z.iso.datetime({ offset: true }) }).nullable(), committer: z.object({ date: z.iso.datetime({ offset: true }) }).nullable() }) });
+type CacheCommit = { repository_id: string; repository_name: string; sha: string; message: string; commit_url: string; branch: string | null; author_date: string | null };
 
 export async function syncGitHubCommits(targetRepo?: string): Promise<SyncCommitsResult> {
   const user = await requireActiveUser();
-  const userClient = await createClient();
-  const adminClient = createAdminClient();
-
-  // 1. Check connection
-  const { data: connection } = await userClient
-    .from("github_connections")
-    .select("id, github_user_id, github_username, connection_status")
-    .eq("user_id", user.userId)
-    .maybeSingle();
-
-  if (!connection || connection.connection_status === "DISCONNECTED") {
-    return {
-      ok: false,
-      code: "NOT_CONNECTED",
-      message: "Akun GitHub belum terhubung. Silakan hubungkan akun terlebih dahulu.",
-    };
-  }
-
-  // 2. Fetch token via admin client
-  const { data: tokenRecord } = await adminClient
-    .from("github_tokens")
-    .select("access_token")
-    .eq("user_id", user.userId)
-    .maybeSingle();
-
-  if (!tokenRecord?.access_token) {
-    await userClient
-      .from("github_connections")
-      .update({ connection_status: "REAUTH_REQUIRED", updated_at: new Date().toISOString() })
-      .eq("user_id", user.userId);
-
-    return {
-      ok: false,
-      code: "REAUTH_REQUIRED",
-      message: "Token otorisasi GitHub tidak ditemukan. Silakan hubungkan ulang akun GitHub.",
-    };
-  }
-
-  const accessToken = tokenRecord.access_token;
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    Accept: "application/vnd.github.v3+json",
-    "User-Agent": "InternFlow-Logbook",
+  const repoFilter = targetRepo?.trim();
+  if (repoFilter && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repoFilter)) return { ok: false, code: "REPO_UNAVAILABLE", message: "Gunakan nama repo dalam format owner/repository." };
+  const admin = createAdminClient();
+  const nonce = randomUUID();
+  const { data: lease, error: leaseError } = await admin.rpc("begin_github_sync", { p_user_id: user.userId, p_nonce: nonce });
+  if (leaseError || !lease) return { ok: false, code: "SYNC_ERROR", message: "Sinkronisasi belum dapat dimulai. Coba lagi." };
+  if (!lease.ok) return { ok: false, code: lease.code, message: lease.code === "SYNC_IN_PROGRESS" ? "Sinkronisasi sedang berjalan. Tunggu sebentar." : "Hubungkan ulang GitHub untuk menyinkronkan commit." };
+  const connection = lease.connection as { version: number; github_user_id: string; github_username: string };
+  const commits: CacheCommit[] = [];
+  const unavailable: string[] = [];
+  let result: SyncCommitsResult = { ok: false, code: "SYNC_ERROR", message: "Sinkronisasi terputus. Coba lagi." };
+  let reauth = false;
+  const finish = async () => {
+    const { data, error } = await admin.rpc("finish_github_sync", { p_user_id: user.userId, p_version: connection.version, p_nonce: nonce, p_commits: commits, p_complete: result.ok, p_reauth: reauth, p_unavailable_repos: unavailable });
+    if (error) {
+      // Release the lease without claiming the failed batch was saved.
+      await admin.rpc("finish_github_sync", { p_user_id: user.userId, p_version: connection.version, p_nonce: nonce, p_commits: [], p_complete: false, p_reauth: false, p_unavailable_repos: [] });
+      return { ok: false, code: "SYNC_ERROR" as const, message: "Commit belum tersimpan. Coba sinkronkan lagi." };
+    }
+    if (!data) return { ok: false, code: "NOT_CONNECTED" as const, message: "Koneksi GitHub berubah. Muat ulang sebelum menyinkronkan." };
+    revalidatePath("/integrations"); revalidatePath("/dashboard");
+    return { ...result, syncedCount: commits.length };
   };
-
   try {
-    // 3. Fetch user repositories (capped to 15 recent repos)
-    const reposRes = await fetch("https://api.github.com/user/repos?sort=updated&per_page=15&type=all", {
-      headers,
-    });
-
-    if (reposRes.status === 401) {
-      await userClient
-        .from("github_connections")
-        .update({ connection_status: "REAUTH_REQUIRED", updated_at: new Date().toISOString() })
-        .eq("user_id", user.userId);
-
-      return {
-        ok: false,
-        code: "REAUTH_REQUIRED",
-        message: "Akses GitHub dicabut atau kedaluwarsa. Silakan hubungkan ulang akun.",
-      };
-    }
-
-    if (reposRes.status === 403 || reposRes.status === 429) {
-      return {
-        ok: false,
-        code: "RATE_LIMITED",
-        message: "Sinkronisasi GitHub sementara dibatasi. Data sinkronisasi terakhir tetap tersedia.",
-      };
-    }
-
-    if (!reposRes.ok) {
-      return {
-        ok: false,
-        code: "SYNC_ERROR",
-        message: `Gagal memuat repositori GitHub (${reposRes.status}).`,
-      };
-    }
-
-    const reposData = await reposRes.json();
-    if (!Array.isArray(reposData)) {
-      return { ok: false, code: "SYNC_ERROR", message: "Respon repositori tidak valid." };
-    }
-
-    // Filter if targetRepo specified
-    const targetRepos = targetRepo
-      ? reposData.filter((r) => r.full_name.toLowerCase() === targetRepo.toLowerCase())
-      : reposData.slice(0, 10);
-
-    const commitsToUpsert: Array<{
-      user_id: string;
-      github_connection_id: string;
-      repository_id: string;
-      repository_name: string;
-      sha: string;
-      message: string | null;
-      commit_url: string | null;
-      branch: string | null;
-      author_date: string | null;
-      source_status: "AVAILABLE";
-      synced_at: string;
-    }> = [];
-
-    const now = new Date().toISOString();
-
-    // 4. For each repo, fetch user's recent authored commits
-    for (const repo of targetRepos) {
-      try {
-        const commitsUrl = `https://api.github.com/repos/${repo.full_name}/commits?author=${encodeURIComponent(
-          connection.github_username
-        )}&per_page=20`;
-
-        const commitsRes = await fetch(commitsUrl, { headers });
-
-        if (commitsRes.status === 401) {
-          await userClient
-            .from("github_connections")
-            .update({ connection_status: "REAUTH_REQUIRED", updated_at: now })
-            .eq("user_id", user.userId);
-          return {
-            ok: false,
-            code: "REAUTH_REQUIRED",
-            message: "Akses GitHub dicabut atau kedaluwarsa.",
-          };
-        }
-
-        if (commitsRes.status === 403 || commitsRes.status === 429) {
-          // Rate limit reached during commit sync - stop querying further repos but upsert what we have
-          break;
-        }
-
-        if (!commitsRes.ok) {
-          // Skip inaccessible repo
-          continue;
-        }
-
-        const commitsData = await commitsRes.json();
-        if (Array.isArray(commitsData)) {
-          for (const item of commitsData) {
-            if (item.sha) {
-              commitsToUpsert.push({
-                user_id: user.userId,
-                github_connection_id: connection.id,
-                repository_id: String(repo.id),
-                repository_name: repo.full_name,
-                sha: item.sha,
-                message: item.commit?.message?.slice(0, 2000) || null,
-                commit_url: item.html_url || null,
-                branch: repo.default_branch || "main",
-                author_date:
-                  item.commit?.author?.date || item.commit?.committer?.date || now,
-                source_status: "AVAILABLE",
-                synced_at: now,
-              });
-            }
-          }
-        }
-      } catch {
-        // Continue on single repo error
+    const { data: record, error } = await admin.from("github_tokens").select("access_token").eq("user_id", user.userId).maybeSingle();
+    if (error) return await finish();
+    let token: string;
+    try { token = decryptGitHubToken(record?.access_token ?? ""); }
+    catch { reauth = true; result = { ok: false, code: "REAUTH_REQUIRED", message: "Otorisasi GitHub perlu diperbarui. Hubungkan ulang akun." }; return await finish(); }
+    const totalTimeout = AbortSignal.timeout(150000);
+    const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "InternFlow" };
+    const get = (path: string) => fetch(`https://api.github.com${path}`, { headers, cache: "no-store", signal: AbortSignal.any([totalTimeout, AbortSignal.timeout(12000)]) });
+    const failure = async (response: Response): Promise<SyncCommitsResult> => {
+      if (response.status === 401) { reauth = true; return { ok: false, code: "REAUTH_REQUIRED", message: "Akses GitHub dicabut. Hubungkan ulang akun." }; }
+      const body = await response.json().catch(() => ({}));
+      const limited = response.status === 429 || (response.status === 403 && (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after") || /rate limit|abuse/i.test(body.message ?? "")));
+      if (limited) {
+        const seconds = Number(response.headers.get("retry-after"));
+        const reset = Number(response.headers.get("x-ratelimit-reset"));
+        const retryTime = seconds > 0 ? Date.now() + seconds * 1000 : reset > 0 ? reset * 1000 : null;
+        return { ok: false, code: "RATE_LIMITED", message: "Batas GitHub tercapai. Commit yang tersimpan tetap tersedia.", ...(retryTime ? { retryAt: new Date(retryTime).toISOString() } : {}) };
+      }
+      return { ok: false, code: "REPO_UNAVAILABLE", message: "Repo tidak tersedia atau akun ini tidak memiliki akses." };
+    };
+    const response = await get(repoFilter ? `/repos/${repoFilter}` : "/user/repos?sort=updated&per_page=100&type=all");
+    if (!response.ok) { result = await failure(response); if (repoFilter && result.code === "REPO_UNAVAILABLE") unavailable.push(repoFilter); return await finish(); }
+    const raw = await response.json();
+    const repos = repoFilter ? [repositorySchema.parse(raw)] : z.array(repositorySchema).parse(raw).slice(0, 10);
+    let partial = false;
+    for (const repo of repos) {
+      const response = await get(`/repos/${repo.full_name}/commits?author=${encodeURIComponent(connection.github_username)}&per_page=100`);
+      if (response.status === 409) continue; // Empty repositories contain no commits.
+      if (!response.ok) {
+        result = await failure(response);
+        if (result.code === "RATE_LIMITED" || result.code === "REAUTH_REQUIRED") return await finish();
+        unavailable.push(repo.full_name); partial = true; continue;
+      }
+      const entries = z.array(commitSchema).parse(await response.json());
+      for (const entry of entries) {
+        if (String(entry.author?.id) !== connection.github_user_id) continue;
+        commits.push({ repository_id: String(repo.id), repository_name: repo.full_name, sha: entry.sha, message: entry.commit.message.slice(0, 2000), commit_url: `https://github.com/${repo.full_name}/commit/${entry.sha}`, branch: repo.default_branch ?? null, author_date: entry.commit.author?.date ?? entry.commit.committer?.date ?? null });
       }
     }
-
-    // 5. Batch upsert commits idempotently
-    if (commitsToUpsert.length > 0) {
-      const { error: upsertErr } = await userClient
-        .from("github_commits")
-        .upsert(commitsToUpsert, {
-          onConflict: "user_id,repository_id,sha",
-        });
-
-      if (upsertErr) {
-        console.error("Failed to upsert commits:", upsertErr.message);
-      }
-    }
-
-    // 6. Update last_synced_at on connection
-    await userClient
-      .from("github_connections")
-      .update({
-        last_synced_at: now,
-        connection_status: "CONNECTED",
-        updated_at: now,
-      })
-      .eq("user_id", user.userId);
-
-    return {
-      ok: true,
-      code: "SUCCESS",
-      syncedCount: commitsToUpsert.length,
-      message: `Berhasil menyinkronkan ${commitsToUpsert.length} commit dari GitHub.`,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "SYNC_ERROR",
-      message: error instanceof Error ? error.message : "Sinkronisasi gagal dilakukan.",
-    };
-  }
+    result = partial ? { ok: false, code: "PARTIAL", message: `${commits.length} commit dimuat. Sebagian repo tidak dapat diakses.` } : { ok: true, code: "SUCCESS", message: `${commits.length} commit disinkronkan${repoFilter ? "" : " dari hingga 10 repo terbaru"}.` };
+  } catch { /* Provider or network failures never expose tokens or raw exceptions. */ }
+  return await finish();
 }

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { PlusCircle, Settings, FileSpreadsheet } from "lucide-react";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { getActivityDays } from "@/features/logbook/server/get-activity-days";
 import { getLogbookRows } from "@/features/logbook/server/get-logbook-rows";
 import { getInternshipSettings } from "@/features/logbook/server/settings";
 import { getMissingDaysSummary } from "@/features/logbook/server/get-missing-days";
@@ -69,52 +71,43 @@ export default async function LogbookPage({
   );
   const targetDate = isSingleDateFilter ? filters.from : undefined;
 
-  const activityDates = new Set<string>(rows.map((r) => r.activityDate));
+  const span = filters.from && filters.to ? (Date.parse(filters.to) - Date.parse(filters.from)) / 86400000 + 1 : 0;
+  const allDays = filters.from && filters.to && span > 0 && span <= 31 ? await getActivityDays(filters.from, filters.to) : [];
+  const activityDates = new Set(allDays.map(day => day.activity_date));
   const missingDates = new Set<string>(missingSummary.missingDays.map((d) => d.date));
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/60">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Logbook Aktivitas
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Histori pekerjaan aktual dan bukti dokumentasi magang Anda.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 font-medium shadow-2xs">
+      <PageHeader title="Logbook" description="Pekerjaan dan bukti, tersusun per hari." action={<div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" className="gap-2">
             <Link href="/reports">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
-              <span className="hidden sm:inline">Ekspor Excel</span>
+              <span>Excel</span>
             </Link>
           </Button>
           <InternshipSettingsDialog
             settings={settings}
             trigger={
-              <Button variant="outline" size="sm" className="gap-1.5 h-9 font-medium shadow-2xs">
+              <Button variant="outline" aria-label="Atur periode magang">
                 <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Pengaturan Magang</span>
+                <span className="sr-only">Periode</span>
               </Button>
             }
           />
-          <Button asChild size="sm" className="gap-1.5 h-9 font-medium shadow-xs">
+          <Button asChild className="gap-2">
             <Link href={`/activities/new?returnTo=${encodeURIComponent(returnToUrl)}`}>
               <PlusCircle className="h-4 w-4" />
-              <span>Tambah Activity</span>
+              <span>Catat</span>
             </Link>
           </Button>
-        </div>
-      </div>
+        </div>} />
 
       {/* Missing-Day Detection & Settings Banner */}
       <MissingDaysBanner summary={missingSummary} settings={settings} />
 
       {/* Filter Controls Bar */}
-      <LogbookFiltersBar filters={filters} />
+      <LogbookFiltersBar key={JSON.stringify(filters)} filters={filters} />
 
       {/* Timeline Day Summary Strip */}
       <TimelineDayStrip

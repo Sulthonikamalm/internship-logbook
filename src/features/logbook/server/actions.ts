@@ -55,6 +55,8 @@ export async function saveInternshipSettingsAction(
   }
 
   revalidatePath("/logbook");
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
 
   return {
     ok: true,

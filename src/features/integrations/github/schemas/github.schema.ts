@@ -1,17 +1,12 @@
 import { z } from "zod";
 
 export const attachCommitSchema = z.object({
-  commitId: z.string().optional(),
-  repositoryName: z.string().min(1).max(200),
-  sha: z.string().min(7).max(40),
-  commitUrl: z.string().url().max(2048),
-  message: z.string().max(2000).nullable().optional(),
-  authorDate: z.string().datetime().nullable().optional(),
+  commitId: z.uuid(),
   activityId: z.string().uuid().optional(),
   todoId: z.string().uuid().optional(),
   title: z.string().max(160).optional(),
   note: z.string().max(10000).optional(),
-});
+}).strict();
 
 export type AttachCommitInput = z.infer<typeof attachCommitSchema>;
 

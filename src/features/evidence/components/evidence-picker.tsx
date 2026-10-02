@@ -1,91 +1,51 @@
 "use client";
-
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Feedback } from "@/components/ui/feedback";
 import type { SafeEvidence } from "../domain/types";
 import { attachEvidence, detachEvidence, getEvidencePickerPage } from "../server/mutations";
+import { attachTodoEvidence } from "@/features/todos/server/mutations";
+import { CommitPicker } from "@/features/integrations/github/components/commit-picker";
 import { PhotoUploader } from "./photo-uploader";
 
-export function EvidencePicker({ activityId, options, attachedIds, total = 0 }: {
-  activityId: string; options: SafeEvidence[]; attachedIds: string[]; total?: number;
-}) {
-  const router = useRouter();
-  const [selected, setSelected] = useState("");
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
-  const [success, setSuccess] = useState("");
-  const [items, setItems] = useState(options);
-  const [page, setPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-
+export function EvidencePicker({ activityId, todoId, options, attachedIds, total = 0, onAttached, onBusyChange }: { activityId?: string; todoId?: string; options: SafeEvidence[]; attachedIds: string[]; total?: number; onAttached?: () => void; onBusyChange?: (busy: boolean) => void }) {
+  const router = useRouter(); const selectId = useId(); const lock = useRef(false);
+  const [selected, setSelected] = useState(""); const [pending, setPending] = useState(false); const [message, setMessage] = useState("");
+  const [items, setItems] = useState(options); const [previousOptions, setPreviousOptions] = useState(options);
+  const [page, setPage] = useState(1); const [loadingMore, setLoadingMore] = useState(false); const [hasMore, setHasMore] = useState(options.length >= 18);
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => { onBusyChange?.(pending || uploading); }, [pending, uploading, onBusyChange]);
+  if (options !== previousOptions) { setPreviousOptions(options); setItems(current => [...options, ...current.filter(item => !options.some(newer => newer.id === item.id))]); }
   async function attach(id: string) {
-    if (!id || pending) return;
-    setPending(true); setMessage(""); setSuccess("");
+    if (!id || lock.current) return false; lock.current = true; setPending(true); setMessage("");
     try {
-      const result = await attachEvidence(activityId, id);
-      if (!result.ok) setMessage(result.message);
-      else { setSuccess("Evidence dilampirkan."); setSelected(""); router.refresh(); }
-    } catch { setMessage("Lampiran belum tersimpan. Coba lagi."); }
-    finally { setPending(false); }
+      const result = activityId ? await attachEvidence(activityId, id) : todoId ? await attachTodoEvidence({ todoId, evidenceId: id }) : null;
+      if (!result?.ok) { setMessage(result?.message ?? "Lampiran tidak tersedia."); return false; }
+      toast.success("Evidence dilampirkan"); setSelected(""); router.refresh(); onAttached?.(); return true;
+    } catch { setMessage("Lampiran belum tersimpan. Coba lagi."); return false; } finally { lock.current = false; setPending(false); }
   }
-
   async function loadMore() {
-    if (loadingMore) return;
-    setLoadingMore(true); setMessage("");
-    try {
-      const next = await getEvidencePickerPage(page + 1);
-      setItems((current) => [...current, ...next.filter((item) => !current.some((old) => old.id === item.id))]);
-      setPage(page + 1);
-    } catch { setMessage("Evidence berikutnya gagal dimuat."); }
-    finally { setLoadingMore(false); }
+    if (loadingMore) return; setLoadingMore(true); setMessage("");
+    try { const next = await getEvidencePickerPage(page + 1); setItems(current => [...current, ...next.filter(item => !current.some(old => old.id === item.id))]); setPage(current => current+1); setHasMore(next.length >= 18); }
+    catch { setMessage("Evidence berikutnya belum dapat dimuat."); } finally { setLoadingMore(false); }
   }
-
-  const available = items.filter((item) => item.status === "AVAILABLE" && !attachedIds.includes(item.id));
-  return <div className="space-y-4">
-    <div className="flex flex-wrap items-end gap-3">
-      <div className="min-w-48 flex-1"><label htmlFor="evidence-select" className="block text-sm">Pilih dari Evidence Library</label>
-        <select id="evidence-select" value={selected} onChange={(event) => setSelected(event.target.value)}
-          className="w-full rounded-md border bg-background px-3 py-2 text-base">
-          <option value="">Pilih evidence</option>
-          {available.map((item) => <option key={item.id} value={item.id}>
-            [{item.type === "PHOTO" ? "FOTO" : item.type === "GITHUB_COMMIT" ? "COMMIT" : "TAUTAN"}] {item.title || (item.type === "PHOTO" ? "Foto" : item.type === "GITHUB_COMMIT" ? "Commit GitHub" : "Tautan")} · {new Date(item.createdAt).toLocaleDateString("id-ID")}
-          </option>)}
-        </select></div>
-      <button type="button" disabled={!selected || pending} onClick={() => attach(selected)}
-        className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
-        {pending ? "Menambahkan..." : "Lampirkan"}</button>
-    </div>
-    {available.length === 0 && <p className="text-sm text-muted-foreground">Belum ada evidence siap pakai pada daftar terbaru.</p>}
-    {items.length < total && <button type="button" disabled={loadingMore} onClick={loadMore}
-      className="text-sm text-primary underline disabled:opacity-50">{loadingMore ? "Memuat..." : "Muat evidence lainnya"}</button>}
-    {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-    {success && <p role="status" className="text-sm text-primary">{success}</p>}
-    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60">
-      <details><summary className="cursor-pointer text-sm text-primary">Unggah foto baru</summary>
-        <div className="mt-3"><PhotoUploader onUploaded={attach} compact /></div>
-      </details>
-      <a href="/integrations" className="text-xs text-muted-foreground hover:text-primary underline">
-        + Lampirkan Commit dari GitHub
-      </a>
-    </div>
+  const available = items.filter(item => item.status === "AVAILABLE" && !attachedIds.includes(item.id));
+  return <div className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end"><div className="min-w-0 flex-1"><label htmlFor={selectId} className="mb-2 block text-sm font-medium">Dari library</label><select id={selectId} value={selected} disabled={pending || uploading} onChange={e => setSelected(e.target.value)} className="w-full rounded-xl border border-input bg-white px-3"><option value="">Pilih evidence</option>{available.map(item => <option key={item.id} value={item.id}>{item.type === "PHOTO" ? "Foto" : item.type === "GITHUB_COMMIT" ? "Commit" : "Tautan"} · {item.title || "Tanpa judul"}</option>)}</select></div><Button disabled={!selected || pending || uploading} onClick={() => attach(selected)}>{pending ? "Melampirkan…" : "Lampirkan"}</Button></div>
+    {!available.length && <p className="text-xs text-muted-foreground">Belum ada evidence siap pakai di daftar ini.</p>}
+    {(total ? items.length < total : hasMore) && <Button variant="ghost" disabled={loadingMore} onClick={loadMore}>{loadingMore ? "Memuat…" : "Muat evidence lainnya"}</Button>}
+    {message && <Feedback>{message}</Feedback>}
+    <fieldset disabled={pending}><details><summary className="min-h-11 cursor-pointer text-sm text-primary">Upload foto baru</summary><div className="mt-3"><PhotoUploader onUploaded={async id => { if (!await attach(id)) throw new Error("ATTACH_FAILED"); }} onBusyChange={setUploading} compact /></div></details></fieldset>
+    <CommitPicker disabled={pending || uploading} activityId={activityId} todoId={todoId} onAttached={onAttached} />
   </div>;
 }
-
 export function DetachEvidenceButton({ activityId, evidenceId }: { activityId: string; evidenceId: string }) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
+  const router = useRouter(); const [pending, setPending] = useState(false); const [message, setMessage] = useState(""); const lock = useRef(false);
   async function detach() {
-    if (pending) return;
-    setPending(true); setMessage("");
-    try {
-      const result = await detachEvidence(activityId, evidenceId);
-      if (!result.ok) setMessage(result.message);
-      else router.refresh();
-    } catch { setMessage("Lampiran gagal dilepas. Coba lagi."); }
-    finally { setPending(false); }
+    if (lock.current) return; lock.current = true; setPending(true); setMessage("");
+    try { const result = await detachEvidence(activityId, evidenceId); if (!result.ok) setMessage(result.message); else { toast.success("Lampiran dilepas"); router.refresh(); } }
+    catch { setMessage("Lampiran belum dapat dilepas."); } finally { lock.current = false; setPending(false); }
   }
-  return <div className="space-y-1"><button type="button" disabled={pending} onClick={detach}
-    className="text-sm text-destructive underline disabled:opacity-50">{pending ? "Melepas..." : "Lepas lampiran"}</button>
-    {message && <p role="alert" className="text-xs text-destructive">{message}</p>}</div>;
+  return <div><Button variant="ghost" disabled={pending} onClick={detach} className="text-muted-foreground">{pending ? "Melepas…" : "Lepas lampiran"}</Button>{message && <Feedback>{message}</Feedback>}</div>;
 }

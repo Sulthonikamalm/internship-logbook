@@ -4,29 +4,35 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPhotoOnlyActivity } from "../server/mutations";
 import { PhotoUploader } from "./photo-uploader";
+import { Button } from "@/components/ui/button";
+import { Feedback } from "@/components/ui/feedback";
+import { toast } from "sonner";
 
-export function QuickPhotoActivity() {
+export function QuickPhotoActivity({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
   const router = useRouter();
   const [evidenceId, setEvidenceId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const key = useRef(crypto.randomUUID());
+  const lock = useRef(false);
   async function save() {
-    if (!evidenceId || pending) return;
+    if (!evidenceId || lock.current || uploading) return;
+    lock.current = true; onBusyChange?.(true);
     setPending(true); setMessage("");
     try {
       const result = await createPhotoOnlyActivity(evidenceId, key.current);
       if (!result.ok) { setMessage(result.message); return; }
+      toast.success("Draft Activity tersimpan");
       router.push(`/activities/${result.id}`); router.refresh();
     } catch { setMessage("Respons tidak diterima. Coba lagi; foto tetap di Evidence Library."); }
-    finally { setPending(false); }
+    finally { lock.current = false; setPending(false); onBusyChange?.(false); }
   }
   return <section className="space-y-3">
-    <PhotoUploader compact onUploaded={(id) => { setEvidenceId(id); setMessage(""); }} />
-    {evidenceId && <button type="button" disabled={pending} onClick={save}
-      className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-      {pending ? "Menyimpan aktivitas..." : "Simpan aktivitas dari foto"}</button>}
-    {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-    <p className="text-xs text-muted-foreground">Foto saja membuat draf “Aktivitas tanpa judul” yang dapat Anda lengkapi nanti.</p>
+    <PhotoUploader compact onBusyChange={value => { setUploading(value); onBusyChange?.(value); }} onUploaded={(id) => { if (evidenceId !== id) key.current = crypto.randomUUID(); setEvidenceId(id); setMessage(""); }} />
+    {evidenceId && <Button type="button" disabled={pending || uploading} onClick={save}>
+      {pending ? "Menyimpan…" : "Simpan Activity"}</Button>}
+    {message && <Feedback>{message}</Feedback>}
+    <p className="text-xs text-muted-foreground">Foto menjadi draft. Lengkapi judulnya nanti.</p>
   </section>;
 }

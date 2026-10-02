@@ -2,89 +2,39 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  CalendarCheck2,
-  Plus,
-  BookOpen,
-  Image as ImageIcon,
-} from "lucide-react";
+import { useState } from "react";
+import { Ellipsis, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 import { LogoutButton } from "@/features/auth/components/logout-button";
+import { Brand } from "./brand";
+import { navigationItems, isCurrentPath } from "./navigation";
 
 export function MobileHeader() {
-  return (
-    <header className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b border-border bg-card px-4 md:hidden">
-      <Link href="/dashboard" className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">
-          IF
-        </div>
-        <span className="font-bold text-base text-foreground tracking-tight">
-          Intern<span className="text-primary">Flow</span>
-        </span>
-      </Link>
-
-      <div className="flex items-center gap-2">
-        <LogoutButton compact />
-      </div>
-    </header>
-  );
+  return <header className="glass-panel fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b px-4 md:hidden">
+    <Brand /><Link href="/settings" aria-label="Settings" className="pressable flex size-11 items-center justify-center rounded-full text-muted-foreground"><Settings size={21} /></Link>
+  </header>;
 }
 
 export function MobileBottomNav() {
   const pathname = usePathname();
-
-  const navItems = [
-    { name: "Home", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Activity", href: "/activities", icon: CalendarCheck2 },
-    { name: "Quick", href: "/activities/new?quick=1", icon: Plus, isAction: true },
-    { name: "Logbook", href: "/logbook", icon: BookOpen },
-    { name: "Evidence", href: "/evidence", icon: ImageIcon },
-  ];
-
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card px-2 py-1 md:hidden shadow-lg">
-      <div className="flex items-center justify-around">
-        {navItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (!item.isAction && item.href !== "/dashboard" && pathname.startsWith(item.href));
-          const Icon = item.icon;
-
-          if (item.isAction) {
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex flex-col items-center justify-center"
-              >
-                <div className="flex h-11 w-11 -mt-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-transform active:scale-95">
-                  <Icon className="h-6 w-6" />
-                </div>
-                <span className="text-[10px] font-semibold text-primary mt-0.5">
-                  + Catat
-                </span>
-              </Link>
-            );
-          }
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center justify-center py-1 px-3 text-xs transition-colors",
-                isActive
-                  ? "text-primary font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className={cn("h-5 w-5", isActive ? "text-primary" : "text-muted-foreground")} />
-              <span className="text-[10px] mt-0.5">{item.name}</span>
-            </Link>
-          );
+  const [moreOpen, setMoreOpen] = useState(false);
+  const toolsActive = navigationItems.some(item => item.group === "tools" && isCurrentPath(pathname, item.href));
+  return <>
+    <nav aria-label="Navigasi mobile" className="glass-panel fixed inset-x-0 bottom-0 z-40 border-t px-2 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] md:hidden">
+      <div className="grid grid-cols-5">
+        {navigationItems.filter(item => item.group === "work").map(item => {
+          const active = isCurrentPath(pathname, item.href);
+          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("pressable flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium", active ? "text-primary" : "text-muted-foreground")}><item.icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />{item.name}</Link>;
         })}
+        <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen} className={cn("pressable flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium", toolsActive ? "text-primary" : "text-muted-foreground")}><Ellipsis size={21} aria-hidden="true" />More</button>
       </div>
     </nav>
-  );
+    <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="Tools">
+      <div className="grid grid-cols-2 gap-3">
+        {navigationItems.filter(item => item.group === "tools").map(item => <Link href={item.href} key={item.href} onClick={() => setMoreOpen(false)} className="pressable surface flex min-h-24 flex-col justify-center gap-3 p-4 text-sm font-medium"><item.icon className="text-primary" size={23} aria-hidden="true" />{item.name}</Link>)}
+      </div>
+      <div className="mt-5 border-t border-border pt-3"><LogoutButton /></div>
+    </Modal>
+  </>;
 }

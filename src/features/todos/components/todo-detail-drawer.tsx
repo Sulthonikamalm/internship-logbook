@@ -1,471 +1,63 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  X,
-  Edit2,
-  Trash2,
-  CalendarCheck2,
-  Layers,
-  History,
-  AlertTriangle,
-  Plus,
-  Trash,
-  ExternalLink,
-} from "lucide-react";
+import { toast } from "sonner";
+import { Pencil, Trash2, Plus, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
+import { Feedback } from "@/components/ui/feedback";
 import type { TodoDetailItem, TodoPriority } from "../domain/types";
-import { updateTodo, deleteTodo, attachTodoEvidence, detachTodoEvidence } from "../server/mutations";
+import type { SafeEvidence } from "@/features/evidence/domain/types";
+import { EvidencePicker } from "@/features/evidence/components/evidence-picker";
+import { getEvidencePickerPage } from "@/features/evidence/server/mutations";
+import { updateTodo, deleteTodo, detachTodoEvidence } from "../server/mutations";
 
-export function TodoDetailDrawer({
-  isOpen,
-  onClose,
-  initialData,
-}: {
-  todoId?: string;
-  isOpen: boolean;
-  onClose: () => void;
-  initialData?: TodoDetailItem | null;
-}) {
-  const router = useRouter();
-  const [data, setData] = useState<TodoDetailItem | null>(initialData || null);
-  const [prevId, setPrevId] = useState(initialData?.id);
-  const [isEditing, setIsEditing] = useState(false);
-
-  // Edit form state
-  const [title, setTitle] = useState(initialData?.title || "");
-  const [description, setDescription] = useState(initialData?.description || "");
-  const [priority, setPriority] = useState<TodoPriority>(initialData?.priority || "MEDIUM");
-  const [dueDate, setDueDate] = useState(initialData?.dueDate || "");
-
-  const [pending, setPending] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Evidence attach state
-  const [showAttachPicker, setShowAttachPicker] = useState(false);
-  const [availableEvidences, setAvailableEvidences] = useState<Array<{ id: string; title: string | null; type: string }>>([]);
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState("");
-  const [attachPending, setAttachPending] = useState(false);
-
-  // Adjust state during render when initialData prop changes
-  if (initialData && initialData.id !== prevId) {
-    setPrevId(initialData.id);
-    setData(initialData);
-    setTitle(initialData.title);
-    setDescription(initialData.description || "");
-    setPriority(initialData.priority);
-    setDueDate(initialData.dueDate || "");
-  }
-
-  // Load available evidences when attach picker opens
+export function TodoDetailDrawer({ isOpen, onClose, initialData: data, error = "", onReload }: { todoId?: string; isOpen: boolean; onClose: () => void; initialData?: TodoDetailItem | null; error?: string; onReload: () => void }) {
+  const [editing, setEditing] = useState(false); const [removeOpen, setRemoveOpen] = useState(false);
+  const [pending, setPending] = useState(false); const [message, setMessage] = useState(""); const lock = useRef(false);
+  const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [priority, setPriority] = useState<TodoPriority>("MEDIUM"); const [due, setDue] = useState(""); const [editVersion, setEditVersion] = useState(1);
+  const [pickerOpen, setPickerOpen] = useState(false); const [options, setOptions] = useState<SafeEvidence[] | null>(null); const [pickerError, setPickerError] = useState("");
+  const [pickerBusy, setPickerBusy] = useState(false);
   useEffect(() => {
-    if (showAttachPicker) {
-      fetch("/api/evidence/library?limit=30")
-        .then((r) => r.json())
-        .then((res) => {
-          if (res?.items) {
-            setAvailableEvidences(
-              res.items.filter((item: { status: string }) => item.status === "AVAILABLE")
-            );
-          }
-        })
-        .catch(() => {});
-    }
-  }, [showAttachPicker]);
-
-  if (!isOpen || !data) return null;
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || pending) return;
-
-    setPending(true);
-    setErrorMessage(null);
-
-    try {
-      const res = await updateTodo({
-        id: data.id,
-        title,
-        description: description || undefined,
-        priority,
-        dueDate: dueDate || null,
-        expectedVersion: data.version,
-      });
-
-      if (!res.ok) {
-        setErrorMessage(res.message);
-      } else {
-        setIsEditing(false);
-        setData((prev) => (prev ? { ...prev, ...res.data } : null));
-        router.refresh();
-      }
-    } catch {
-      setErrorMessage("Gagal memperbarui Todo.");
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm("Apakah Anda yakin ingin menghapus Todo ini?")) return;
-    setPending(true);
-    try {
-      await deleteTodo(data.id);
-      onClose();
-      router.refresh();
-    } catch {
-      alert("Gagal menghapus Todo.");
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const handleAttachEvidence = async () => {
-    if (!selectedEvidenceId || attachPending) return;
-    setAttachPending(true);
-    try {
-      const res = await attachTodoEvidence({
-        todoId: data.id,
-        evidenceId: selectedEvidenceId,
-      });
-      if (res.ok) {
-        setShowAttachPicker(false);
-        setSelectedEvidenceId("");
-        router.refresh();
-      } else {
-        alert(res.message);
-      }
-    } catch {
-      alert("Gagal melampirkan evidence.");
-    } finally {
-      setAttachPending(false);
-    }
-  };
-
-  const handleDetachEvidence = async (relId: string) => {
-    if (!confirm("Lepaskan evidence ini dari Todo?")) return;
-    try {
-      const res = await detachTodoEvidence(relId);
-      if (res.ok) {
-        setData((prev) =>
-          prev ? { ...prev, evidences: prev.evidences.filter((e) => e.id !== relId) } : null
-        );
-        router.refresh();
-      } else {
-        alert(res.message);
-      }
-    } catch {
-      alert("Gagal melepas evidence.");
-    }
-  };
-
-  // URL for "Catat sebagai Activity"
-  const recordActivityUrl = `/activities/new?todoId=${data.id}&title=${encodeURIComponent(
-    data.title
-  )}&description=${encodeURIComponent(data.description || "")}`;
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-background/60 backdrop-blur-xs">
-      <div className="relative w-full max-w-xl bg-card border-l border-border h-full shadow-2xl overflow-y-auto flex flex-col animate-in slide-in-from-right duration-200">
-        {/* Drawer Header */}
-        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm text-foreground">Rincian Todo</span>
-            <Badge variant="outline" className="text-xs">
-              {data.stage.name}
-            </Badge>
-            {data.evidenceHealth === "EVIDENCE_INCOMPLETE" && (
-              <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30 gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Evidence Kurang
-              </Badge>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => setIsEditing(!isEditing)}
-              title="Edit Todo"
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:bg-destructive/10"
-              onClick={handleDelete}
-              title="Hapus Todo"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Drawer Content */}
-        <div className="p-4 sm:p-6 space-y-6 flex-1">
-          {/* Edit Form OR View Details */}
-          {isEditing ? (
-            <form onSubmit={handleUpdate} className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Judul Todo</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Deskripsi</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Prioritas</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as TodoPriority)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Jatuh Tempo</label>
-                  <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </div>
-              </div>
-
-              {errorMessage && <p className="text-xs text-destructive">{errorMessage}</p>}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-                  Batal
-                </Button>
-                <Button type="submit" size="sm" disabled={pending}>
-                  {pending ? "Menyimpan..." : "Simpan Perubahan"}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold text-foreground leading-snug">{data.title}</h1>
-                {data.description ? (
-                  <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                    {data.description}
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground italic">Tidak ada deskripsi.</p>
-                )}
-              </div>
-
-              {/* Metadata Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-lg border border-border bg-muted/30 text-xs">
-                <div>
-                  <span className="text-muted-foreground block">Prioritas</span>
-                  <span className="font-semibold text-foreground">{data.priority}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Jatuh Tempo</span>
-                  <span className="font-semibold text-foreground">{data.dueDate || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Mulai</span>
-                  <span className="font-semibold text-foreground">
-                    {data.startedAt ? new Date(data.startedAt).toLocaleDateString("id-ID") : "—"}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Selesai</span>
-                  <span className="font-semibold text-foreground">
-                    {data.completedAt ? new Date(data.completedAt).toLocaleDateString("id-ID") : "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action Helper: Catat sebagai Activity */}
-          <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between gap-4">
-            <div className="space-y-0.5 text-xs">
-              <span className="font-semibold text-foreground flex items-center gap-1.5">
-                <CalendarCheck2 className="h-4 w-4 text-primary" />
-                Catat ke Jurnal Activity
-              </span>
-              <p className="text-muted-foreground">
-                Salin judul dan deskripsi Todo ini langsung ke formulir Activity harian.
-              </p>
-            </div>
-            <Button asChild size="sm" className="shrink-0 gap-1.5 text-xs shadow-xs">
-              <Link href={recordActivityUrl}>
-                <span>Catat sebagai Activity</span>
-                <ExternalLink className="h-3 w-3" />
-              </Link>
-            </Button>
-          </div>
-
-          {/* Section: Attached Evidence */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                <Layers className="h-4 w-4 text-primary" />
-                Evidence Terlampir ({data.evidences.length})
-              </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => setShowAttachPicker(!showAttachPicker)}
-              >
-                <Plus className="h-3 w-3" />
-                <span>Lampirkan</span>
-              </Button>
-            </div>
-
-            {showAttachPicker && (
-              <div className="p-3 rounded-lg border border-border bg-card space-y-2 text-xs">
-                <label className="font-medium text-foreground">Pilih dari Evidence Library:</label>
-                <select
-                  value={selectedEvidenceId}
-                  onChange={(e) => setSelectedEvidenceId(e.target.value)}
-                  className="w-full h-8 rounded border border-input bg-background px-2 text-xs"
-                >
-                  <option value="">-- Pilih Evidence --</option>
-                  {availableEvidences.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.title || (ev.type === "PHOTO" ? "Foto" : "Tautan")} ({ev.type})
-                    </option>
-                  ))}
-                </select>
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowAttachPicker(false)}>
-                    Batal
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={!selectedEvidenceId || attachPending}
-                    onClick={handleAttachEvidence}
-                  >
-                    {attachPending ? "Menyimpan..." : "Simpan Lampiran"}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {data.evidences.map((ev) => (
-                <div
-                  key={ev.id}
-                  className="p-2.5 rounded-md border border-border/80 bg-background flex items-center justify-between gap-2 text-xs"
-                >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 uppercase">
-                      {ev.type}
-                    </Badge>
-                    <span className="font-medium text-foreground truncate">{ev.title || "Evidence tanpa judul"}</span>
-                    {ev.status === "BROKEN" && (
-                      <span className="text-[10px] font-semibold text-destructive">Rusak</span>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDetachEvidence(ev.id)}
-                    title="Lepas lampiran"
-                  >
-                    <Trash className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-
-              {data.evidences.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">Belum ada evidence terlampir pada Todo ini.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Section: Linked Activities */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-              <CalendarCheck2 className="h-4 w-4 text-emerald-600" />
-              Activity Terkait ({data.activities.length})
-            </h3>
-            <div className="space-y-2">
-              {data.activities.map((act) => (
-                <Link
-                  key={act.id}
-                  href={`/activities/${act.id}`}
-                  className="p-2.5 rounded-md border border-border/70 hover:border-primary/50 bg-background flex items-center justify-between text-xs transition-colors group"
-                >
-                  <span className="font-medium text-foreground group-hover:text-primary transition-colors">
-                    {act.title}
-                  </span>
-                  <span className="text-muted-foreground">{act.activityDate}</span>
-                </Link>
-              ))}
-              {data.activities.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">Belum ada Activity yang ditautkan ke Todo ini.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Section: Transition History */}
-          <div className="space-y-3 pt-2 border-t border-border/60">
-            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-              <History className="h-4 w-4 text-muted-foreground" />
-              Riwayat Perjalanan (Audit Trail)
-            </h3>
-            <div className="space-y-2.5">
-              {data.transitions.map((t) => (
-                <div key={t.id} className="p-2.5 rounded-md border border-border/50 bg-muted/20 text-xs space-y-1">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {t.fromStageName ? `${t.fromStageName} → ` : ""}
-                      {t.toStageName}
-                    </span>
-                    <span className="text-[11px]">{new Date(t.createdAt).toLocaleString("id-ID")}</span>
-                  </div>
-                  {t.note && <p className="text-foreground/90 italic">&ldquo;{t.note}&rdquo;</p>}
-                  <span className="text-[10px] text-muted-foreground block">
-                    Evidence tervalidasi: {t.evidenceCount}
-                  </span>
-                </div>
-              ))}
-              {data.transitions.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">Belum ada riwayat transisi.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    if (!pickerOpen) return;
+    let valid = true;
+    getEvidencePickerPage(1).then(result => { if (valid) setOptions(result); }).catch(() => { if (valid) setPickerError("Library belum dapat dimuat."); });
+    return () => { valid = false; };
+  }, [pickerOpen]);
+  function edit() { if (!data) return; setTitle(data.title); setDescription(data.description ?? ""); setPriority(data.priority); setDue(data.dueDate ?? ""); setEditVersion(data.version); setMessage(""); setEditing(true); }
+  async function save(event: React.FormEvent) {
+    event.preventDefault(); if (!data || lock.current) return; lock.current = true; setPending(true); setMessage("");
+    try { const result = await updateTodo({ id: data.id, title, description, priority, dueDate: due || null, expectedVersion: editVersion }); if (!result.ok) setMessage(result.message); else { toast.success("Todo disimpan"); setEditing(false); onReload(); } }
+    catch { setMessage("Todo belum tersimpan. Coba lagi."); } finally { lock.current = false; setPending(false); }
+  }
+  async function remove() {
+    if (!data || lock.current) return; lock.current = true; setPending(true); setMessage("");
+    try { const result = await deleteTodo(data.id); if (!result.ok) setMessage(result.message); else { toast.success("Todo dihapus"); setRemoveOpen(false); onClose(); } }
+    catch { setMessage("Todo belum dihapus. Coba lagi."); } finally { lock.current = false; setPending(false); }
+  }
+  async function detach(id: string) {
+    if (lock.current) return; lock.current = true; setPending(true); setMessage("");
+    try { const result = await detachTodoEvidence(id); if (!result.ok) setMessage(result.message); else { toast.success("Lampiran dilepas"); onReload(); } }
+    catch { setMessage("Lampiran belum dapat dilepas."); } finally { lock.current = false; setPending(false); }
+  }
+  return <>
+    <Modal open={isOpen} onClose={onClose} title="Detail todo" side="right" busy={pending || pickerBusy}>
+      {error ? <div className="space-y-4"><Feedback>{error}</Feedback><Button onClick={onReload}>Coba lagi</Button></div> : !data ? <div role="status" aria-label="Memuat todo" className="space-y-5"><div className="skeleton h-8 w-3/4 rounded-xl" /><div className="skeleton h-28 rounded-2xl" /></div> : <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-2"><Badge variant="info">{data.stage.name}</Badge><div className="flex gap-1"><Button variant="ghost" size="icon" onClick={edit} aria-label="Edit todo" disabled={pending || pickerBusy}><Pencil size={18} /></Button><Button variant="ghost" size="icon" onClick={() => setRemoveOpen(true)} aria-label="Hapus todo" disabled={pending || pickerBusy}><Trash2 size={18} /></Button></div></div>
+        {data.evidenceHealth === "EVIDENCE_INCOMPLETE" && <Feedback tone="warning">Evidence perlu dilengkapi. Tahap todo tetap tersimpan.</Feedback>}
+        {editing ? <form onSubmit={save} className="space-y-4"><fieldset disabled={pending} className="space-y-4"><label className="block space-y-2 text-sm font-medium"><span>Judul</span><Input value={title} onChange={e => setTitle(e.target.value)} maxLength={200} required /></label><label className="block space-y-2 text-sm font-medium"><span>Deskripsi</span><textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={5000} rows={3} className="w-full rounded-xl border border-input px-3 py-2" /></label><div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-2 text-sm"><span>Prioritas</span><select value={priority} onChange={e => setPriority(e.target.value as TodoPriority)} className="w-full rounded-xl border border-input px-3"><option value="LOW">Rendah</option><option value="MEDIUM">Normal</option><option value="HIGH">Tinggi</option><option value="URGENT">Mendesak</option></select></label><label className="block space-y-2 text-sm"><span>Tenggat</span><Input type="date" value={due} onChange={e => setDue(e.target.value)} /></label></div></fieldset><div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={pending} onClick={() => setEditing(false)}>Batal</Button><Button disabled={pending}>{pending ? "Menyimpan…" : "Simpan"}</Button></div></form> : <div><h2 className="break-words text-xl font-semibold leading-snug">{data.title}</h2>{data.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{data.description}</p>}<p className="mt-4 text-xs text-muted-foreground">{data.dueDate ? `Tenggat ${data.dueDate}` : "Tanpa tenggat"} · {data.priority === "HIGH" || data.priority === "URGENT" ? "Prioritas tinggi" : "Prioritas normal"}</p></div>}
+        {message && <Feedback>{message}<button type="button" onClick={onReload} className="ml-2 underline">Muat ulang data</button></Feedback>}
+        <Button asChild variant="outline" className="w-full gap-2"><Link aria-disabled={pickerBusy || pending} tabIndex={pickerBusy || pending ? -1 : undefined} onClick={event => { if (pickerBusy || pending) event.preventDefault(); }} href={`/activities/new?todoId=${data.id}&title=${encodeURIComponent(data.title)}&description=${encodeURIComponent(data.description ?? "")}`}><Plus size={17} />Catat sebagai Activity</Link></Button>
+        <section className="space-y-3 border-t border-border pt-5"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Evidence · {data.evidences.length}</h3><Button variant="ghost" size="sm" onClick={() => { setOptions(null); setPickerError(""); setPickerOpen(current => !current); }} disabled={pending || pickerBusy}>Lampirkan</Button></div>
+          {pickerOpen && <div className="rounded-2xl bg-muted/40 p-4">{pickerError ? <Feedback>{pickerError}</Feedback> : options ? <EvidencePicker todoId={data.id} options={options} attachedIds={data.evidences.map(e => e.evidenceId)} onAttached={onReload} onBusyChange={setPickerBusy} /> : <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={16} className="animate-spin" />Memuat library…</p>}</div>}
+          {data.evidences.map(evidence => <div key={evidence.id} className="flex items-center gap-3 rounded-xl border border-border/60 p-3"><Paperclip size={17} className="shrink-0 text-primary" /><div className="min-w-0 flex-1"><a href={evidence.type === "PHOTO" ? `/api/media/evidence/${evidence.evidenceId}` : evidence.url && /^https?:\/\//i.test(evidence.url) ? evidence.url : "/evidence"} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-medium">{evidence.title || "Evidence"}</a><p className={`mt-1 text-xs ${evidence.status === "AVAILABLE" ? "text-muted-foreground" : "text-warning"}`}>{evidence.status === "AVAILABLE" ? "Siap" : "Tidak tersedia"}</p></div><Button variant="ghost" size="icon" aria-label={`Lepas ${evidence.title || "evidence"}`} disabled={pending} onClick={() => detach(evidence.id)}><Trash2 size={16} /></Button></div>)}{!data.evidences.length && <p className="text-xs text-muted-foreground">Belum ada evidence.</p>}
+        </section>
+        <section className="border-t border-border pt-5"><h3 className="mb-3 text-sm font-semibold">Activity terkait</h3>{data.activities.map(activity => <Link href={`/activities/${activity.id}`} key={activity.id} className="flex min-h-11 items-center justify-between gap-3 text-sm"><span className="truncate">{activity.title}</span><span className="shrink-0 text-xs text-muted-foreground">{activity.activityDate}</span></Link>)}{!data.activities.length && <p className="text-xs text-muted-foreground">Belum ada Activity.</p>}</section>
+        <details className="border-t border-border pt-3"><summary className="min-h-11 cursor-pointer text-sm font-medium">Riwayat tahap · {data.transitions.length}</summary><ol className="mt-2 space-y-3">{data.transitions.map(item => <li key={item.id} className="text-xs text-muted-foreground"><p className="font-medium text-foreground">{item.fromStageName || "Awal"} → {item.toStageName || "Tahap"}</p><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString("id-ID")}</time>{item.note && <p className="mt-1 break-words">{item.note}</p>}</li>)}</ol></details>
+      </div>}
+    </Modal>
+    <Modal open={removeOpen} onClose={() => setRemoveOpen(false)} title="Hapus todo?" description="Activity dan evidence yang terkait tetap tersimpan." busy={pending}><div className="space-y-4">{message && <Feedback>{message}</Feedback>}<div className="flex justify-end gap-2"><Button variant="ghost" disabled={pending} onClick={() => setRemoveOpen(false)}>Batal</Button><Button variant="destructive" disabled={pending} onClick={remove}>{pending ? "Menghapus…" : "Hapus todo"}</Button></div></div></Modal>
+  </>;
 }

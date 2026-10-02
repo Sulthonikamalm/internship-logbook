@@ -38,7 +38,7 @@ const userB = {
   contentReadAll: false,
 };
 
-let currentUser = userA;
+let currentUser: typeof userA | null = userA;
 
 // Mock database state
 const mockDb = {
@@ -52,6 +52,8 @@ const mockDb = {
 vi.mock("@/lib/auth/require-active-user", () => ({
   requireActiveUser: async () => currentUser,
 }));
+vi.mock("@/lib/auth/get-current-user", () => ({ getCurrentUser: async () => currentUser }));
+vi.mock("@/lib/env/server", () => ({ getServerEnv: () => ({ APP_BASE_URL: "https://internflow.invalid" }) }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -70,8 +72,9 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     from: (table: string) => {
       const filters: { field: string; op: string; val: any }[] = [];
-      let isAscending = true;
-      let orderField = "created_at";
+      const orders: { field: string; ascending: boolean }[] = [];
+      let rangeStart = 0;
+      let rangeEnd = Infinity;
 
       const chain: any = {
         select: () => chain,
@@ -96,10 +99,10 @@ vi.mock("@/lib/supabase/server", () => ({
           return chain;
         },
         order: (field: string, options?: { ascending?: boolean }) => {
-          orderField = field;
-          isAscending = options?.ascending ?? true;
+          orders.push({ field, ascending: options?.ascending ?? true });
           return chain;
         },
+        range: (from: number, to: number) => { rangeStart = from; rangeEnd = to; return chain; },
         then: (resolve: any) => {
           let list: any[] = [];
           if (table === "activities") {
@@ -125,14 +128,15 @@ vi.mock("@/lib/supabase/server", () => ({
           }
 
           list.sort((a, b) => {
-            const valA = a[orderField] ?? "";
-            const valB = b[orderField] ?? "";
-            if (valA < valB) return isAscending ? -1 : 1;
-            if (valA > valB) return isAscending ? 1 : -1;
+            for (const order of orders) {
+              const valA = a[order.field] ?? "";
+              const valB = b[order.field] ?? "";
+              if (valA < valB) return order.ascending ? -1 : 1;
+              if (valA > valB) return order.ascending ? 1 : -1;
+            }
             return 0;
           });
-
-          return resolve({ data: list, error: null });
+          return resolve({ data: list.slice(rangeStart, rangeEnd + 1), error: null });
         },
       };
       return chain;
@@ -399,6 +403,12 @@ describe("Phase 5: Excel Export & Reports", () => {
   });
 
   describe("5. Multi-User Isolation & Server Data Query", () => {
+    it("reads all pages beyond the provider row limit", async () => {
+      mockDb.activities = Array.from({ length: 1105 }, (_, index) => ({ id: `act-${String(index).padStart(4,"0")}`, user_id: userA.userId, activity_date: "2026-09-01", title: "Work", description: null, start_time: null, end_time: null, deleted_at: null, created_at: "2026-09-01T09:00:00Z" }));
+      const result = await getExportData({ from: "2026-09-01", to: "2026-09-30", includeEvidence: true, evidenceLinkMode: "APP_PRIVATE" });
+      expect(result.activities).toHaveLength(1105); expect(result.activities.at(-1)?.id).toBe("act-1104");
+    });
+
     it("ensures User A only exports User A's activities and ignores User B", async () => {
       // Setup DB records
       mockDb.activities = [
@@ -511,6 +521,11 @@ describe("Phase 5: Excel Export & Reports", () => {
   });
 
   describe("6. Route Handler & Audit Logging", () => {
+    it("returns 401 for an expired session before processing report input", async () => {
+      currentUser = null;
+      const result = await POST(new NextRequest("http://localhost:3000/api/reports/export-excel", { method: "POST", body: "invalid" }));
+      expect(result.status).toBe(401); expect(mockDb.auditLogs).toHaveLength(0);
+    });
     it("returns 400 for invalid request body", async () => {
       const req = new NextRequest("http://localhost:3000/api/reports/export-excel", {
         method: "POST",
