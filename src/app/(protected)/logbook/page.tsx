@@ -17,6 +17,8 @@ import { LogbookEmptyState } from "@/features/logbook/components/logbook-empty-s
 import { TimelineDayStrip } from "@/features/logbook/components/timeline-day-strip";
 import { InternshipSettingsDialog } from "@/features/logbook/components/internship-settings-dialog";
 import type { LogbookFilterInput } from "@/features/logbook/domain/types";
+import { CategoryTabs } from "@/features/work/components/category-tabs";
+import { parseWorkCategory } from "@/features/work/domain/category";
 
 export const metadata: Metadata = {
   title: "Logbook — InternFlow",
@@ -34,6 +36,7 @@ export default async function LogbookPage({
   const rawParams = await searchParams;
 
   const filterInput: LogbookFilterInput = {
+    category: typeof rawParams.category === "string" ? rawParams.category : undefined,
     preset: typeof rawParams.preset === "string" ? rawParams.preset : undefined,
     from: typeof rawParams.from === "string" ? rawParams.from : undefined,
     to: typeof rawParams.to === "string" ? rawParams.to : undefined,
@@ -54,6 +57,8 @@ export default async function LogbookPage({
 
   // Reconstruct current URL string for safe returnTo navigation
   const currentParams = new URLSearchParams();
+  const category = parseWorkCategory(filters.category);
+  currentParams.set("category", category);
   if (filters.preset) currentParams.set("preset", filters.preset);
   if (filters.preset === "month" && filters.month) currentParams.set("month", filters.month);
   if (filters.preset === "custom") {
@@ -72,16 +77,16 @@ export default async function LogbookPage({
   const targetDate = isSingleDateFilter ? filters.from : undefined;
 
   const span = filters.from && filters.to ? (Date.parse(filters.to) - Date.parse(filters.from)) / 86400000 + 1 : 0;
-  const allDays = filters.from && filters.to && span > 0 && span <= 31 ? await getActivityDays(filters.from, filters.to) : [];
+  const allDays = filters.from && filters.to && span > 0 && span <= 31 ? await getActivityDays(filters.from, filters.to, category) : [];
   const activityDates = new Set(allDays.map(day => day.activity_date));
-  const missingDates = new Set<string>(missingSummary.missingDays.map((d) => d.date));
+  const missingDates = new Set<string>(category === "INTERNSHIP" ? missingSummary.missingDays.map((d) => d.date) : []);
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
       <PageHeader title="Logbook" description="Pekerjaan dan bukti, tersusun per hari." action={<div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="outline" className="gap-2">
-            <Link href="/reports">
+            <Link href={`/reports?category=${category}`}>
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
               <span>Excel</span>
             </Link>
@@ -96,7 +101,7 @@ export default async function LogbookPage({
             }
           />
           <Button asChild className="gap-2">
-            <Link href={`/activities/new?returnTo=${encodeURIComponent(returnToUrl)}`}>
+            <Link href={`/activities/new?category=${category}&returnTo=${encodeURIComponent(returnToUrl)}`}>
               <PlusCircle className="h-4 w-4" />
               <span>Catat</span>
             </Link>
@@ -104,7 +109,9 @@ export default async function LogbookPage({
         </div>} />
 
       {/* Missing-Day Detection & Settings Banner */}
-      <MissingDaysBanner summary={missingSummary} settings={settings} />
+      <CategoryTabs value={category} href="/logbook" />
+      {category === "INTERNSHIP" && <MissingDaysBanner summary={missingSummary} settings={settings} />}
+      {category === "PERSONAL" && <Link href="/calendar?category=PERSONAL" className="inline-flex min-h-11 items-center text-sm text-primary">Lihat pekerjaan Personal yang selesai di Kalender →</Link>}
 
       {/* Filter Controls Bar */}
       <LogbookFiltersBar key={JSON.stringify(filters)} filters={filters} />

@@ -22,6 +22,7 @@ export type AuthContext = {
   isActive: boolean;
   displayName: string;
   contentReadAll: boolean;
+  isSuperAdmin?: boolean;
 };
 
 /**

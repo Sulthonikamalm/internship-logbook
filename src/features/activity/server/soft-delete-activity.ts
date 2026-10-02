@@ -33,5 +33,7 @@ export async function softDeleteActivity(id: string): Promise<ActivityActionResu
   revalidatePath("/dashboard");
   revalidatePath("/logbook");
   revalidatePath("/todos");
+  revalidatePath("/calendar");
+  revalidatePath("/reports");
   return { ok: true, activity: data as Activity };
 }

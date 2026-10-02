@@ -23,7 +23,7 @@ export default async function ProtectedLayout({
   const user = await requireActiveUser();
 
   return (
-    <AppShell displayName={user.displayName}>
+    <AppShell displayName={user.displayName} isSuperAdmin={user.isSuperAdmin}>
       {children}
     </AppShell>
   );

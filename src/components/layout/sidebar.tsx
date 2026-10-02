@@ -7,12 +7,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/features/auth/components/logout-button";
 import { Brand } from "./brand";
-import { navigationItems, isCurrentPath } from "./navigation";
+import { getNavigationItems, isCurrentPath } from "./navigation";
 
 export { navigationItems } from "./navigation";
 
-export function Sidebar({ displayName }: { displayName?: string }) {
+export function Sidebar({ displayName, isSuperAdmin }: { displayName?: string; isSuperAdmin?: boolean }) {
   const pathname = usePathname();
+  const navigationItems = getNavigationItems(isSuperAdmin);
   return <aside className="glass-panel fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r md:flex lg:w-64">
     <div className="px-6 pt-6 pb-5"><Brand /></div>
     <div className="px-5 pb-7"><Button asChild className="w-full gap-2"><Link href="/activities/new?quick=1"><Plus size={18} />Catat activity</Link></Button></div>

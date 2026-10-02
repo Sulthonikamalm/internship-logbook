@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { AuthContext } from "./types";
 import { parseRole, parseTimezone } from "./types";
+import { isSuperAdminIdentity } from "./super-admin";
 
 /**
  * Retrieves the current authenticated user and their profile.
@@ -45,5 +46,6 @@ export async function getCurrentUser(): Promise<AuthContext | null> {
     isActive: Boolean(profile.is_active),
     timezone: parseTimezone(profile.timezone),
     contentReadAll: Boolean(profile.content_read_all),
+    isSuperAdmin: isSuperAdminIdentity(user, Boolean(profile.is_active)),
   };
 }

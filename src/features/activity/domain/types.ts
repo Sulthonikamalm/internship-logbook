@@ -17,8 +17,11 @@ export type Activity = {
   updated_at: string;
   deleted_at: string | null;
   todo_id?: string | null;
+  work_category?: WorkCategory;
+  completion_transition_id?: string | null;
 };
 
 export type ActivityActionResult =
   | { ok: true; activity: Activity }
   | { ok: false; code: "VALIDATION_ERROR" | "CONFLICT" | "NOT_FOUND_OR_FORBIDDEN" | "INTERNAL_ERROR"; message: string; fields?: Record<string, string> };
+import type { WorkCategory } from "@/features/work/domain/category";

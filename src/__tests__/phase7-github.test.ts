@@ -156,6 +156,6 @@ describe("Commit selection and disconnect boundary", () => {
     const url = `https://github.com/qa/repo/commit/${commit.sha}`;
     expect(formatEvidenceSummary([{ id: commitId, type: "GITHUB_COMMIT", title: "Work", status: "AVAILABLE", url }])).toBe("1 Commit");
     const workbook = new ExcelJS.Workbook(); buildEvidenceSheet(workbook, [{ evidenceId: commitId, activityId: owner, activityDate: "2026-10-01", type: "GITHUB_COMMIT", title: "Work", status: "AVAILABLE", url }], "https://internflow.invalid");
-    expect(workbook.getWorksheet("Evidence Detail")?.getRow(2).getCell(6).value).toMatchObject({ hyperlink: url });
+    expect(workbook.getWorksheet("Evidence Detail")?.getRow(2).getCell(5).value).toMatchObject({ hyperlink: url });
   });
 });

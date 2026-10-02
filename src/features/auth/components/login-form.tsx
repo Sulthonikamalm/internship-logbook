@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type LoginState } from "../actions/login";
-import { Loader2, LogIn, Mail, Lock } from "lucide-react";
+import { Loader2, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 interface LoginFormProps {
   /** Optional next URL for redirect after login */
@@ -12,6 +12,8 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ nextUrl }: LoginFormProps) {
+  const [visible, setVisible] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
   const [state, formAction, isPending] = useActionState<LoginState | null, FormData>(
     loginAction,
     null
@@ -75,10 +77,11 @@ export function LoginForm({ nextUrl }: LoginFormProps) {
           <Lock className="h-3.5 w-3.5 text-muted-foreground" />
           Password
         </label>
-        <Input
+        <div className="relative"><Input
           id="password"
+          ref={passwordRef}
           name="password"
-          type="password"
+          type={visible ? "text" : "password"}
           autoComplete="current-password"
           placeholder="••••••••"
           required
@@ -87,8 +90,8 @@ export function LoginForm({ nextUrl }: LoginFormProps) {
           aria-describedby={
             state?.fieldErrors?.password ? "password-error" : undefined
           }
-          className="h-11"
-        />
+          className="h-12 pr-12"
+        /><button type="button" disabled={isPending} aria-label={visible ? "Sembunyikan password" : "Tampilkan password"} aria-pressed={visible} onClick={() => { setVisible(value => !value); passwordRef.current?.focus(); }} className="absolute top-0 right-0 flex h-12 w-12 items-center justify-center rounded-r-xl text-muted-foreground hover:text-primary">{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
         {state?.fieldErrors?.password && (
           <p id="password-error" className="text-xs text-destructive mt-1">
             {state.fieldErrors.password[0]}
@@ -100,7 +103,7 @@ export function LoginForm({ nextUrl }: LoginFormProps) {
       <Button
         id="login-submit"
         type="submit"
-        className="w-full h-11 text-base font-semibold"
+        className="w-full h-12 justify-between px-5 text-base font-semibold"
         disabled={isPending}
       >
         {isPending ? (
@@ -110,8 +113,8 @@ export function LoginForm({ nextUrl }: LoginFormProps) {
           </>
         ) : (
           <>
-            <LogIn className="h-4 w-4" />
             Masuk
+            <ArrowRight className="h-4 w-4" />
           </>
         )}
       </Button>

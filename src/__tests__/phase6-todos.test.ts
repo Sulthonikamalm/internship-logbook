@@ -41,11 +41,11 @@ beforeEach(() => {
       expect(isTransitionAllowed("TODO", "BACKLOG")).toBe(true);
     });
 
-    it("strictly forbids skipping stages (e.g. BACKLOG -> DONE, TODO -> DONE)", () => {
-      expect(isTransitionAllowed("BACKLOG", "DONE")).toBe(false);
+    it("allows explicit completion while keeping other stage jumps restricted", () => {
+      expect(isTransitionAllowed("BACKLOG", "DONE")).toBe(true);
       expect(isTransitionAllowed("BACKLOG", "IN_PROGRESS")).toBe(false);
-      expect(isTransitionAllowed("TODO", "DONE")).toBe(false);
-      expect(isTransitionAllowed("IN_PROGRESS", "DONE")).toBe(false);
+      expect(isTransitionAllowed("TODO", "DONE")).toBe(true);
+      expect(isTransitionAllowed("IN_PROGRESS", "DONE")).toBe(true);
     });
 
     it("rejects transition to the same stage", () => {
@@ -60,8 +60,8 @@ beforeEach(() => {
     });
 
     it("returns allowed target stage codes for mobile menu", () => {
-      expect(getAllowedTargetStageCodes("BACKLOG")).toEqual(["TODO"]);
-      expect(getAllowedTargetStageCodes("TODO")).toEqual(["BACKLOG", "IN_PROGRESS"]);
+      expect(getAllowedTargetStageCodes("BACKLOG")).toEqual(["TODO", "DONE"]);
+      expect(getAllowedTargetStageCodes("TODO")).toEqual(["BACKLOG", "IN_PROGRESS", "DONE"]);
       expect(getAllowedTargetStageCodes("DONE")).toEqual(["REVIEW"]);
     });
   });
@@ -142,14 +142,14 @@ describe("Excel Todo sheet", () => {
 
       const header = sheet!.getRow(1);
       expect(header.getCell(1).value).toBe("No");
-      expect(header.getCell(2).value).toBe("Judul Todo");
-      expect(header.getCell(5).value).toBe("Tahap");
-      expect(header.getCell(8).value).toBe("Evidence");
+      expect(header.getCell(2).value).toBe("Tugas selesai");
+      expect(header.getCell(3).value).toBe("Tanggal selesai");
+      expect(header.getCell(4).value).toBe("Bukti tersedia");
 
       const row1 = sheet!.getRow(2);
       expect(row1.getCell(2).value).toBe("Build Kanban Board");
-      expect(row1.getCell(3).value).toBe("HIGH");
-      expect(row1.getCell(5).value).toBe("In Progress");
+      expect(row1.getCell(3).value).toBe("—");
+      expect(row1.getCell(5).value).toBe(1);
 
       // Verify formula sanitization on row 2
       const row2 = sheet!.getRow(3);
@@ -191,7 +191,7 @@ describe("Todo server boundary", () => {
     expect(createTodoSchema.safeParse({ title: "Todo", dueDate: "2026-02-30" }).success).toBe(false);
   });
   it("prevents creation directly into a terminal stage", async () => {
-    mocks.single.mockResolvedValue({ data: { id: stageId, code: "DONE" }, error: null });
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "23514" } });
     expect((await createTodo({ title: "Bypass", stageId })).ok).toBe(false);
   });
   it("authenticates before processing a transition", async () => {

@@ -10,6 +10,7 @@ import { EvidenceCard } from "@/features/evidence/components/evidence-card";
 import { EvidencePicker, DetachEvidenceButton } from "@/features/evidence/components/evidence-picker";
 
 import { safeRedirect } from "@/lib/auth/safe-redirect";
+import { categoryLabels, parseWorkCategory } from "@/features/work/domain/category";
 
 export default async function ActivityDetailPage({
   params,
@@ -34,9 +35,10 @@ export default async function ActivityDetailPage({
   return <article className="mx-auto max-w-3xl space-y-6">
     <Link href={backUrl} className="inline-flex min-h-11 items-center text-sm text-primary">← Kembali</Link>
     <PageHeader title={activity.title} description={`${activity.activity_date}${activity.start_time ? ` · ${activity.start_time.slice(0,5)}` : ""}${activity.end_time ? `–${activity.end_time.slice(0,5)}` : ""}`} action={<Badge variant="secondary">{{ DRAFT: "Draft", READY: "Siap", ARCHIVED: "Arsip" }[activity.status]}</Badge>} />
+    <span className="category-chip" data-category={parseWorkCategory(activity.work_category)}>{categoryLabels[parseWorkCategory(activity.work_category)]}</span>
     <div className="surface p-5">
       <h2 className="font-semibold">Deskripsi</h2>
-      <p className="mt-2 whitespace-pre-wrap text-sm">{activity.description || "Belum ada deskripsi."}</p>
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm">{activity.description || "Belum ada deskripsi."}</p>
     </div>
     {activity.todo_id && <Button asChild variant="outline"><Link href={`/todos?todo=${activity.todo_id}`}>Buka Todo terkait →</Link></Button>}
     <div className="surface p-5">

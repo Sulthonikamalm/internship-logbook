@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { isRealDate } from "@/features/activity/domain/date";
+import { workCategorySchema } from "@/features/work/domain/category";
 
 export const createTodoSchema = z.object({
+  idempotencyKey: z.uuid().optional(),
+  workCategory: workCategorySchema.default("INTERNSHIP"),
+  autoRecordActivity: z.boolean().default(true),
   title: z
     .string()
     .trim()
@@ -23,6 +27,8 @@ export const createTodoSchema = z.object({
 });
 
 export const updateTodoSchema = z.object({
+  workCategory: workCategorySchema.optional(),
+  autoRecordActivity: z.boolean().optional(),
   id: z.uuid(),
   title: z
     .string()

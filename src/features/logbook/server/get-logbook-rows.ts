@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
 import { relatedOne } from "@/lib/supabase/read-all-rows";
 import { normalizeLogbookFilters } from "../domain/filters";
+import { parseWorkCategory } from "@/features/work/domain/category";
 import type { ActivityStatus } from "@/features/activity/domain/types";
 import type { EvidenceStatus, EvidenceType } from "@/features/evidence/domain/types";
 import type { LogbookEvidenceItem, LogbookFilterInput, LogbookRow, NormalizedLogbookFilters } from "../domain/types";
@@ -10,9 +11,9 @@ import type { LogbookEvidenceItem, LogbookFilterInput, LogbookRow, NormalizedLog
 export type LogbookRowsResult = { rows: LogbookRow[]; count: number; totalUnfilteredCount: number; page: number; pageSize: number; totalPages: number; filters: NormalizedLogbookFilters };
 export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<LogbookRowsResult> {
   const user = await requireActiveUser(); const filters = normalizeLogbookFilters(rawParams, user.timezone); const supabase = await createClient();
-  const total = await supabase.from("activities").select("id", { count: "exact", head: true }).eq("user_id", user.userId).is("deleted_at", null);
+  const total = await supabase.from("activities").select("id", { count: "exact", head: true }).eq("user_id", user.userId).eq("work_category", parseWorkCategory(filters.category)).is("deleted_at", null);
   if (total.error) throw new Error("Jumlah Activity belum dapat dimuat.");
-  let query = supabase.from("logbook_activities").select("*", { count: "exact" }).eq("user_id", user.userId).is("deleted_at", null);
+  let query = supabase.from("logbook_activities").select("*", { count: "exact" }).eq("user_id", user.userId).eq("work_category", parseWorkCategory(filters.category)).is("deleted_at", null);
   if (filters.from) query = query.gte("activity_date", filters.from);
   if (filters.to) query = query.lte("activity_date", filters.to);
   if (filters.q) { const escaped = filters.q.replace(/[\\%_]/g, "\\$&").replace(/[(),]/g, " "); query = query.or(`title.ilike.%${escaped}%,description.ilike.%${escaped}%`); }

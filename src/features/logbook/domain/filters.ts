@@ -1,4 +1,5 @@
 import { isRealDate, localDateAt } from "@/features/activity/domain/date";
+import { parseWorkCategory } from "@/features/work/domain/category";
 import type {
   EvidenceTypeFilter,
   FilterPreset,
@@ -116,7 +117,7 @@ export function normalizeLogbookFilters(
     from = weekRange.start;
     to = weekRange.end;
   } else if (preset === "month") {
-    if (raw.month && /^\d{4}-\d{2}$/.test(raw.month)) {
+    if (raw.month && isRealDate(`${raw.month}-01`)) {
       month = raw.month;
     } else {
       month = today.slice(0, 7);
@@ -146,6 +147,7 @@ export function normalizeLogbookFilters(
   }
 
   return {
+    category: parseWorkCategory(raw.category),
     preset,
     from,
     to,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, PlusCircle, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { parseWorkCategory } from "@/features/work/domain/category";
 
 type Props = {
   totalUnfilteredCount: number;
@@ -20,7 +21,7 @@ export function LogbookEmptyState({
 
   if (totalUnfilteredCount === 0) {
     title = "Belum ada Activity untuk logbook.";
-    description = "Mulai catat aktivitas harian magang Anda untuk mengisi logbook.";
+    description = "Mulai dari catatan singkat hari ini.";
   } else if (isSingleDateFilter) {
     title = "Belum ada Activity pada tanggal ini.";
     description = targetDate
@@ -29,8 +30,8 @@ export function LogbookEmptyState({
   }
 
   const createUrl = targetDate
-    ? `/activities/new?date=${targetDate}&returnTo=${encodeURIComponent(returnToUrl)}`
-    : `/activities/new?returnTo=${encodeURIComponent(returnToUrl)}`;
+    ? `/activities/new?date=${targetDate}&category=${parseWorkCategory(new URL(returnToUrl, "https://internflow.invalid").searchParams.get("category"))}&returnTo=${encodeURIComponent(returnToUrl)}`
+    : `/activities/new?category=${parseWorkCategory(new URL(returnToUrl, "https://internflow.invalid").searchParams.get("category"))}&returnTo=${encodeURIComponent(returnToUrl)}`;
 
   return (
     <div className="rounded-xl border border-dashed border-border bg-card p-12 text-center shadow-2xs space-y-4 max-w-lg mx-auto my-8">

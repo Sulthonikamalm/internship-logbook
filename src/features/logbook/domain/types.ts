@@ -1,5 +1,6 @@
 import type { ActivityStatus } from "@/features/activity/domain/types";
 import type { EvidenceStatus, EvidenceType } from "@/features/evidence/domain/types";
+import type { WorkCategory } from "@/features/work/domain/category";
 
 export type WorkingDayNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
@@ -46,6 +47,7 @@ export type FilterPreset = "today" | "week" | "month" | "custom";
 export type EvidenceTypeFilter = "all" | "photo" | "link" | "github" | "none";
 
 export type LogbookFilterInput = {
+  category?: string;
   preset?: string;
   from?: string;
   to?: string;
@@ -57,6 +59,7 @@ export type LogbookFilterInput = {
 };
 
 export type NormalizedLogbookFilters = {
+  category?: WorkCategory;
   preset: FilterPreset;
   from?: string; // YYYY-MM-DD
   to?: string; // YYYY-MM-DD

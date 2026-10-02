@@ -21,6 +21,8 @@ export interface TodoItem {
   id: string;
   userId: string;
   title: string;
+  workCategory?: WorkCategory;
+  autoRecordActivity?: boolean;
   description: string | null;
   priority: TodoPriority;
   dueDate: string | null;
@@ -82,3 +84,4 @@ export interface BoardData {
   stages: TodoStage[];
   todos: TodoItem[];
 }
+import type { WorkCategory } from "@/features/work/domain/category";

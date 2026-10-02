@@ -6,6 +6,10 @@ import { buildExportFilename } from "@/features/reports/excel/sanitize-filename"
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getServerEnv } from "@/lib/env/server";
+import { missingReportEvidence } from "@/features/reports/domain/evidence-gate";
+import { categoryLabels } from "@/features/work/domain/category";
+import { activateReportPhotoShare, createReportPhotoShare, removeInactiveReportPhotoShare } from "@/features/reports/server/report-photo-shares";
+import { isLocalReportHost } from "@/features/reports/domain/photo-link";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,6 +40,14 @@ export async function POST(req: NextRequest) {
 
     const input = parseResult.data;
 
+    if (input.evidenceLinkMode === "REPORT_SHARED") {
+      const configured = new URL(getServerEnv().APP_BASE_URL);
+      if (configured.protocol !== "https:" && !isLocalReportHost(configured.hostname)
+        || isLocalReportHost(configured.hostname) && !isLocalReportHost(req.nextUrl.hostname)) {
+        return NextResponse.json({ error: "SHARE_BASE_URL", message: "Alamat situs untuk tautan dosen belum siap. Hubungi pengelola." }, { status: 503 });
+      }
+    }
+
     // Security Gate: Reject DRIVE_SHARED if requested until full permission system is built
     if (input.evidenceLinkMode === "DRIVE_SHARED") {
       return NextResponse.json(
@@ -56,20 +68,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "EMPTY_RANGE",
-          message: "Tidak ada Activity pada rentang tanggal ini.",
+          message: "Belum ada kegiatan untuk kategori dan periode ini.",
         },
         { status: 404 }
       );
     }
 
+    const missing = missingReportEvidence(data.activities, input.category);
+    if (missing.length) return NextResponse.json({ error: "EVIDENCE_REQUIRED", message: `${missing.length} kegiatan belum memiliki bukti yang tersedia.`, missing: missing.slice(0, 5).map(row => ({ title: row.title, href: row.href ?? `/activities/${row.id}` })) }, { status: 422 });
+
     // Determine application base URL for APP_PRIVATE evidence links
     const origin = getServerEnv().APP_BASE_URL;
 
-    // Generate ExcelJS workbook buffer
-    const buffer = await generateWorkbook(data, {
-      includeEvidence: input.includeEvidence,
-      baseUrl: origin,
-    });
+    // A grant starts inactive, so a failed workbook never exposes its photos.
+    const photoShare = input.evidenceLinkMode === "REPORT_SHARED" ? await createReportPhotoShare(data, input) : null;
+    let buffer: Buffer;
+    try {
+      buffer = await generateWorkbook(data, {
+        includeEvidence: input.includeEvidence,
+        baseUrl: origin,
+        photoShare,
+      });
+      if (photoShare) await activateReportPhotoShare(data.user.userId, photoShare.id);
+    } catch (error) {
+      if (photoShare) await removeInactiveReportPhotoShare(data.user.userId, photoShare.id);
+      throw error;
+    }
 
     // Record audit log event
     try {
@@ -85,6 +109,8 @@ export async function POST(req: NextRequest) {
           row_count: data.activities.length,
           evidence_mode: input.evidenceLinkMode,
           include_evidence: input.includeEvidence,
+          category: input.category,
+          share_id: photoShare?.id ?? null,
         },
       });
     } catch (auditErr) {
@@ -94,7 +120,7 @@ export async function POST(req: NextRequest) {
 
     // Generate safe export filename
     const filename = buildExportFilename(
-      data.user.displayName,
+      `${categoryLabels[input.category]}_${data.user.displayName}`,
       input.from,
       input.to
     );
@@ -107,6 +133,7 @@ export async function POST(req: NextRequest) {
         "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         "Cache-Control": "private, no-cache, no-store, must-revalidate",
         Pragma: "no-cache",
+        "X-InternFlow-Photo-Links": photoShare ? "shared" : "private",
       },
     });
   } catch (err: unknown) {

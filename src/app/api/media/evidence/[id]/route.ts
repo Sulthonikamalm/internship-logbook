@@ -1,6 +1,6 @@
 import { activeApiUser, jsonError } from "@/features/evidence/server/http";
 import { createClient } from "@/lib/supabase/server";
-import { getDriveMetadata } from "@/lib/google-drive/metadata";
+import { verifyDrivePhoto } from "@/features/evidence/server/verify-drive-photo";
 import { downloadDriveBytes, downloadDriveFile } from "@/lib/google-drive/download";
 import { DriveError } from "@/lib/google-drive/errors";
 import sharp from "sharp";
@@ -25,13 +25,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!photo) return jsonError("Foto tidak tersedia.", 404);
 
   try {
-    const remote = await getDriveMetadata(photo.drive_file_id);
-    if (remote.appProperties?.internflowEvidenceId !== id
-        || remote.appProperties?.internflowUserId !== user.userId
-        || remote.parents?.includes(photo.drive_folder_id) !== true
-        || remote.name !== photo.stored_filename
-        || remote.mimeType !== photo.mime_type
-        || Number(remote.size) !== photo.size_bytes) {
+    if (!await verifyDrivePhoto(id, user.userId, photo)) {
       return jsonError("Foto tidak tersedia.", 404);
     }
     if (new URL(request.url).searchParams.get("thumb") === "1") {

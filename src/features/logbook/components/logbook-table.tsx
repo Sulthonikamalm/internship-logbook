@@ -19,10 +19,10 @@ export function LogbookDesktopTable({ rows, page, pageSize, returnToUrl }: Props
   const returnToParam = encodeURIComponent(returnToUrl);
 
   return (
-    <div className="hidden md:block overflow-hidden rounded-xl border border-border bg-card shadow-2xs">
+    <div className="hidden xl:block overflow-hidden rounded-xl border border-border bg-card shadow-2xs">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm text-foreground">
-          <caption className="sr-only">Tabel Logbook Aktivitas Magang</caption>
+          <caption className="sr-only">Tabel Logbook Kegiatan</caption>
           <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
               <th scope="col" className="w-12 px-4 py-3 text-center font-semibold">

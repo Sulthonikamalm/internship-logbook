@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { LogoutButton } from "@/features/auth/components/logout-button";
 import { Brand } from "./brand";
-import { navigationItems, isCurrentPath } from "./navigation";
+import { getNavigationItems, isCurrentPath } from "./navigation";
 
 export function MobileHeader() {
   return <header className="glass-panel fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b px-4 md:hidden">
@@ -16,18 +16,19 @@ export function MobileHeader() {
   </header>;
 }
 
-export function MobileBottomNav() {
+export function MobileBottomNav({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
   const pathname = usePathname();
+  const navigationItems = getNavigationItems(isSuperAdmin);
   const [moreOpen, setMoreOpen] = useState(false);
   const toolsActive = navigationItems.some(item => item.group === "tools" && isCurrentPath(pathname, item.href));
   return <>
     <nav aria-label="Navigasi mobile" className="glass-panel fixed inset-x-0 bottom-0 z-40 border-t px-2 pt-2 pb-[max(.5rem,env(safe-area-inset-bottom))] md:hidden">
-      <div className="grid grid-cols-5">
+      <div className="grid h-12 grid-cols-5">
         {navigationItems.filter(item => item.group === "work").map(item => {
           const active = isCurrentPath(pathname, item.href);
-          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("pressable flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium", active ? "text-primary" : "text-muted-foreground")}><item.icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />{item.name}</Link>;
+          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors", active ? "text-primary" : "text-muted-foreground")}><item.icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />{item.name}</Link>;
         })}
-        <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen} className={cn("pressable flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium", toolsActive ? "text-primary" : "text-muted-foreground")}><Ellipsis size={21} aria-hidden="true" />More</button>
+        <button type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen} className={cn("flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium transition-colors", toolsActive ? "text-primary" : "text-muted-foreground")}><Ellipsis size={21} aria-hidden="true" />More</button>
       </div>
     </nav>
     <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="Tools">

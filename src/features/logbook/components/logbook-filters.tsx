@@ -15,6 +15,7 @@ export function LogbookFiltersBar({ filters }: { filters: NormalizedLogbookFilte
   }
   const field = "w-full rounded-lg border bg-background px-3 py-2";
   return <form onSubmit={apply} className="surface space-y-4 p-4" aria-busy={pending}>
+    <input type="hidden" name="category" value={filters.category ?? "INTERNSHIP"} />
     <fieldset disabled={pending} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div><label htmlFor="logbook-preset" className="mb-1.5 block text-sm">Periode</label><select id="logbook-preset" name="preset" value={preset} onChange={e => setPreset(e.target.value as FilterPreset)} className={field}><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan</option><option value="custom">Rentang tanggal</option></select></div>
       <div><label htmlFor="logbook-keyword" className="mb-1.5 block text-sm">Cari</label><input id="logbook-keyword" name="q" defaultValue={filters.q} maxLength={100} placeholder="Judul atau deskripsi" className={field} /></div>
@@ -22,6 +23,6 @@ export function LogbookFiltersBar({ filters }: { filters: NormalizedLogbookFilte
       {preset === "month" && <div><label htmlFor="logbook-month-picker" className="mb-1.5 block text-sm">Bulan</label><input id="logbook-month-picker" name="month" type="month" required defaultValue={filters.month || filters.from?.slice(0,7)} className={field} /></div>}
       {preset === "custom" && <><div><label htmlFor="logbook-from-date" className="mb-1.5 block text-sm">Dari</label><input id="logbook-from-date" name="from" type="date" required defaultValue={filters.from} className={field} aria-invalid={Boolean(error)} /></div><div><label htmlFor="logbook-to-date" className="mb-1.5 block text-sm">Sampai</label><input id="logbook-to-date" name="to" type="date" required defaultValue={filters.to} className={field} aria-invalid={Boolean(error)} /></div></>}
     </fieldset>
-    {error && <Feedback>{error}</Feedback>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={pending} onClick={() => startTransition(() => router.push("/logbook"))}>Reset</Button><Button type="submit" disabled={pending}>{pending ? "Memuat…" : "Terapkan"}</Button></div>
+    {error && <Feedback>{error}</Feedback>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" disabled={pending} onClick={() => startTransition(() => router.push(`/logbook?category=${filters.category ?? "INTERNSHIP"}`))}>Reset</Button><Button type="submit" disabled={pending}>{pending ? "Memuat…" : "Terapkan"}</Button></div>
   </form>;
 }

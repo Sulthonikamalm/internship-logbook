@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Feedback } from "@/components/ui/feedback";
+import { CategoryField } from "@/features/work/components/category-field";
+import { parseWorkCategory, type WorkCategory } from "@/features/work/domain/category";
 import { createActivity } from "../server/create-activity";
 import { updateActivity } from "../server/update-activity";
 import { localDateAt, maxActivityDate } from "../domain/date";
@@ -18,6 +20,7 @@ import { isRealDate } from "../domain/date";
 type FormValues = {
   title: string; description: string; activityDate: string;
   startTime: string; endTime: string; status: ActivityStatus;
+  workCategory: WorkCategory;
 };
 
 type Props = {
@@ -31,6 +34,7 @@ type Props = {
   todoId?: string;
   returnTo?: string;
   onBusyChange?: (busy: boolean) => void;
+  initialCategory?: WorkCategory;
 };
 
 export function ActivityForm({
@@ -44,6 +48,7 @@ export function ActivityForm({
   todoId,
   returnTo,
   onBusyChange,
+  initialCategory,
 }: Props) {
   const router = useRouter();
   const draftId = activity ? `edit-${activity.id}` : todoId ? `todo-${todoId}` : quick ? "quick" : "new";
@@ -51,6 +56,7 @@ export function ActivityForm({
   const today = localDateAt(new Date(), timezone);
   const initialDateResolved = initialDate && isRealDate(initialDate) ? initialDate : today;
   const initial: FormValues = {
+    workCategory: parseWorkCategory(activity?.work_category ?? initialCategory),
     title: activity?.title ?? initialTitle ?? "",
     description: activity?.description ?? initialDescription ?? "",
     activityDate: activity?.activity_date ?? initialDateResolved,
@@ -204,11 +210,13 @@ export function ActivityForm({
           <div className="mt-3 flex gap-3">
             <button type="button" className="text-sm font-semibold text-primary" onClick={() => {
               setValues({ title: restore.title, description: restore.description,
+                workCategory: parseWorkCategory(restore.workCategory),
                 activityDate: restore.activityDate, startTime: restore.startTime,
                 endTime: restore.endTime, status: restore.status });
               keyRef.current = restore.idempotencyKey;
               versionRef.current = activity?.version;
               valuesRef.current = { title: restore.title, description: restore.description, activityDate: restore.activityDate,
+                workCategory: parseWorkCategory(restore.workCategory),
                 startTime: restore.startTime, endTime: restore.endTime, status: restore.status };
               dirtyRef.current = true;
               setDirty(true); setRestore(null);
@@ -220,6 +228,7 @@ export function ActivityForm({
         </div>
       )}
       <fieldset disabled={pending || Boolean(restore)} className="space-y-5">
+      <CategoryField value={values.workCategory} onChange={value => change("workCategory", value)} disabled={Boolean(todoId || activity?.todo_id)} />
       <div>
         <label htmlFor="activity-title" className="mb-1 block text-sm font-medium">
           {quick ? "Catatan singkat" : "Judul aktivitas"}

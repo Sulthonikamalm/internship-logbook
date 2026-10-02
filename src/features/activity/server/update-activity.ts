@@ -26,6 +26,7 @@ export async function updateActivity(id: string, input: UpdateActivityInput): Pr
     start_time: parsed.data.startTime,
     end_time: parsed.data.endTime,
     status: parsed.data.status,
+    work_category: parsed.data.workCategory,
     version: parsed.data.expectedVersion + 1,
   }).eq("id", id).eq("user_id", user.userId).eq("version", parsed.data.expectedVersion)
     .is("deleted_at", null).select("*").maybeSingle();
@@ -40,5 +41,6 @@ export async function updateActivity(id: string, input: UpdateActivityInput): Pr
   revalidatePath("/dashboard");
   revalidatePath("/logbook");
   revalidatePath("/todos");
+  revalidatePath("/calendar");
   return { ok: true, activity: data as Activity };
 }

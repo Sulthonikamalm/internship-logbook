@@ -7,7 +7,7 @@ import { safeLoginRedirect } from "@/lib/auth/safe-redirect";
  * Protected route prefixes that require authentication.
  * Requests to these paths will redirect to /login if no session.
  */
-const PROTECTED_PREFIXES = ["/dashboard", "/activities", "/todos", "/evidence", "/logbook", "/reports", "/integrations", "/settings", "/profile", "/admin"];
+const PROTECTED_PREFIXES = ["/dashboard", "/calendar", "/activities", "/todos", "/evidence", "/logbook", "/reports", "/integrations", "/settings", "/profile", "/admin"];
 
 /**
  * Auth routes that authenticated users should be redirected away from.

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { workCategorySchema } from "@/features/work/domain/category";
 import { isRealDate } from "../domain/date";
 
 const optionalText = (max: number) => z.union([z.string().max(max), z.null()])
@@ -9,6 +10,7 @@ const optionalTime = z.union([z.string(), z.null()]).optional()
     "Gunakan format jam HH:mm.");
 
 export const activityFieldsSchema = z.object({
+  workCategory: workCategorySchema.default("INTERNSHIP"),
   title: z.string().trim().min(1, "Judul wajib diisi.").max(160, "Maksimal 160 karakter."),
   description: optionalText(10000),
   activityDate: z.string().optional()

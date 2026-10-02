@@ -5,7 +5,7 @@ DECLARE a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); t uuid; foreign_t 
 BEGIN
   INSERT INTO auth.users(id,email,raw_user_meta_data,raw_app_meta_data) VALUES(a,'phase8-a-'||a||'@example.invalid','{}','{}'),(b,'phase8-b-'||b||'@example.invalid','{}','{}');
   SELECT id INTO backlog FROM public.todo_stages WHERE code='BACKLOG';
-  INSERT INTO public.todos(user_id,title,current_stage_id) VALUES(a,'Phase 8 regression',backlog) RETURNING id INTO t;
+  INSERT INTO public.todos(user_id,title,current_stage_id,auto_record_activity) VALUES(a,'Phase 8 regression',backlog,false) RETURNING id INTO t;
   INSERT INTO public.todos(user_id,title,current_stage_id) VALUES(b,'Foreign Todo',backlog) RETURNING id INTO foreign_t;
   PERFORM set_config('qa.foreign_todo',foreign_t::text,true);
   PERFORM public.store_github_connection(a,'12345','qa-owner',ARRAY['read:user'],'v1.test.fixture','bearer',false);
@@ -30,7 +30,7 @@ BEGIN
   SELECT id INTO st_done FROM public.todo_stages WHERE code='DONE';
   BEGIN UPDATE public.todos SET current_stage_id=st_done WHERE id=t; RAISE EXCEPTION 'Direct stage update was allowed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
   BEGIN INSERT INTO public.todos(user_id,title,current_stage_id) VALUES(owner_id,'Bypass',st_done); RAISE EXCEPTION 'Done creation was allowed'; EXCEPTION WHEN check_violation THEN NULL; END;
-  result:=public.transition_todo(t,st_done,1,'jump');
+  result:=public.transition_todo(t,st_review,1,'jump');
   IF result->>'code'<>'INVALID_TRANSITION' THEN RAISE EXCEPTION 'Stage jump accepted: %',result; END IF;
   result:=public.transition_todo(t,st_todo,1,'first');
   IF NOT (result->>'ok')::boolean OR (result->>'newVersion')::integer<>2 THEN RAISE EXCEPTION 'Valid move failed: %',result; END IF;
@@ -95,5 +95,6 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM public.github_evidences WHERE evidence_id=current_setting('qa.evidence')::uuid) THEN RAISE EXCEPTION 'Disconnect removed historical evidence'; END IF;
 END;
 $$;
+SET CONSTRAINTS ALL IMMEDIATE;
 ROLLBACK;
 SELECT 'Phase 8 database regression suite passed; all fixtures rolled back.' AS result;

@@ -18,7 +18,7 @@ export function LogbookMobileCards({ rows, returnToUrl }: Props) {
   const returnToParam = encodeURIComponent(returnToUrl);
 
   return (
-    <div className="md:hidden space-y-3">
+    <div className="xl:hidden space-y-3">
       {rows.map((row) => {
         const isDraft = row.status === "DRAFT";
 

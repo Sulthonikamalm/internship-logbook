@@ -1,0 +1,173 @@
+[
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "navFixed": 844.4444198608398,
+    "page": "todos",
+    "visibleColumns": 1,
+    "width": 320
+  },
+  {
+    "documentWidth": 390,
+    "mainScrollWidth": 390,
+    "mainWidth": 390,
+    "navFixed": 844.4444198608398,
+    "page": "todos",
+    "visibleColumns": 1,
+    "width": 390
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 768,
+    "mainWidth": 768,
+    "navFixed": 0,
+    "page": "todos",
+    "visibleColumns": 1,
+    "width": 768
+  },
+  {
+    "documentWidth": 1024,
+    "mainScrollWidth": 1024,
+    "mainWidth": 1024,
+    "navFixed": 0,
+    "page": "todos",
+    "visibleColumns": 1,
+    "width": 1024
+  },
+  {
+    "documentWidth": 1440,
+    "mainScrollWidth": 1427,
+    "mainWidth": 1427,
+    "navFixed": 0,
+    "page": "todos",
+    "visibleColumns": 5,
+    "width": 1440
+  },
+  {
+    "documentWidth": 390,
+    "mainScrollWidth": 390,
+    "mainWidth": 390,
+    "page": "dashboard",
+    "width": 390
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 756,
+    "mainWidth": 756,
+    "page": "dashboard",
+    "width": 768
+  },
+  {
+    "documentWidth": 1024,
+    "mainScrollWidth": 1012,
+    "mainWidth": 1012,
+    "page": "dashboard",
+    "width": 1024
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/activities",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/evidence",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/logbook",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/reports",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/calendar",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/settings",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "/integrations",
+    "width": 320
+  },
+  {
+    "documentWidth": 320,
+    "mainScrollWidth": 320,
+    "mainWidth": 320,
+    "page": "dashboard",
+    "width": 320
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 756,
+    "mainWidth": 756,
+    "page": "/activities",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 756,
+    "mainWidth": 756,
+    "page": "/evidence",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 768,
+    "mainWidth": 768,
+    "page": "/reports",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 756,
+    "mainWidth": 756,
+    "page": "/calendar",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 768,
+    "mainWidth": 768,
+    "page": "/settings",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 768,
+    "mainWidth": 768,
+    "page": "/integrations",
+    "width": 768
+  },
+  {
+    "documentWidth": 768,
+    "mainScrollWidth": 756,
+    "mainWidth": 756,
+    "page": "/logbook",
+    "width": 768
+  }
+]

@@ -8,20 +8,15 @@ import { toTodoItem } from "../domain/row";
 import type { TodoItem } from "../domain/types";
 
 export type MutationResponse<T = TodoItem | null> = { ok: true; data: T; message: string } | { ok: false; code: string; message: string };
-function refresh() { revalidatePath("/todos"); revalidatePath("/dashboard"); revalidatePath("/evidence"); }
+function refresh() { revalidatePath("/todos"); revalidatePath("/dashboard"); revalidatePath("/evidence"); revalidatePath("/calendar"); revalidatePath("/reports"); }
 export async function createTodo(rawInput: CreateTodoInput): Promise<MutationResponse> {
-  const user = await requireActiveUser();
+  await requireActiveUser();
   const parsed = createTodoSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: parsed.error.issues[0].message };
   const db = await createClient();
-  let query = db.from("todo_stages").select("id,code");
-  query = parsed.data.stageId ? query.eq("id", parsed.data.stageId) : query.eq("code", "BACKLOG");
-  const { data: stage } = await query.maybeSingle();
-  if (!stage || !["BACKLOG", "TODO"].includes(stage.code)) return { ok: false, code: "INVALID_STAGE", message: "Todo baru dimulai dari Backlog atau To Do." };
-  const { data: last, error: orderError } = await db.from("todos").select("sort_order").eq("user_id", user.userId).eq("current_stage_id", stage.id).is("deleted_at", null).order("sort_order", { ascending: false }).limit(1).maybeSingle();
-  if (orderError) return { ok: false, code: "ERROR", message: "Todo belum dapat dibuat. Coba lagi." };
-  const { data, error } = await db.from("todos").insert({ user_id: user.userId, title: parsed.data.title, description: parsed.data.description, priority: parsed.data.priority, due_date: parsed.data.dueDate, current_stage_id: stage.id, sort_order: Number(last?.sort_order ?? 0) + 1000 }).select().single();
-  if (error || !data) return { ok: false, code: "ERROR", message: "Todo belum tersimpan. Coba lagi." };
+  const input = parsed.data;
+  const { data, error } = await db.rpc("create_todo", { p_key: input.idempotencyKey ?? crypto.randomUUID(), p_title: input.title, p_description: input.description, p_priority: input.priority, p_due_date: input.dueDate, p_stage_id: input.stageId ?? null, p_work_category: input.workCategory, p_auto_record: input.autoRecordActivity });
+  if (error || !data || typeof data.id !== "string") return { ok: false, code: "ERROR", message: "Todo belum tersimpan. Periksa data dan coba lagi." };
   refresh(); return { ok: true, data: toTodoItem(data), message: "Todo dibuat." };
 }
 export async function updateTodo(rawInput: UpdateTodoInput): Promise<MutationResponse> {
@@ -29,7 +24,8 @@ export async function updateTodo(rawInput: UpdateTodoInput): Promise<MutationRes
   const parsed = updateTodoSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, code: "VALIDATION_ERROR", message: parsed.error.issues[0].message };
   const input = parsed.data; const db = await createClient();
-  const { data, error } = await db.from("todos").update({ title: input.title, description: input.description, priority: input.priority, due_date: input.dueDate }).eq("id", input.id).eq("user_id", user.userId).eq("version", input.expectedVersion).is("deleted_at", null).select().maybeSingle();
+  const { data, error } = await db.from("todos").update({ title: input.title, description: input.description, priority: input.priority, due_date: input.dueDate, ...(input.workCategory && { work_category: input.workCategory }), ...(input.autoRecordActivity !== undefined && { auto_record_activity: input.workCategory === "PERSONAL" ? false : input.autoRecordActivity }) }).eq("id", input.id).eq("user_id", user.userId).eq("version", input.expectedVersion).is("deleted_at", null).select().maybeSingle();
+  if (error?.code === "23514") return { ok: false, code: "VALIDATION_ERROR", message: "Kategori pada tahap ini memerlukan bukti. Buka kembali Todo yang selesai sebelum mengganti kategorinya." };
   if (error || !data) return { ok: false, code: "CONFLICT", message: "Todo berubah atau tidak tersedia. Muat ulang sebelum menyimpan." };
   refresh(); return { ok: true, data: toTodoItem(data), message: "Todo disimpan." };
 }

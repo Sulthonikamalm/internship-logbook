@@ -76,7 +76,7 @@ vi.mock("@/lib/supabase/server", () => ({
       let rangeStart = 0;
       let rangeEnd = Infinity;
 
-      const chain: any = {
+      const chain: any = { single: async () => ({ data: { id: "done-stage" }, error: null }), lt: (field: string, val: any) => { filters.push({ field, op: "lt", val }); return chain; },
         select: () => chain,
         eq: (field: string, val: any) => {
           filters.push({ field, op: "eq", val });
@@ -106,7 +106,7 @@ vi.mock("@/lib/supabase/server", () => ({
         then: (resolve: any) => {
           let list: any[] = [];
           if (table === "activities") {
-            list = [...mockDb.activities];
+            list = mockDb.activities.map(item => ({ work_category: "INTERNSHIP", status: "AVAILABLE", todo_id: null, completion_transition_id: null, ...item }));
           } else if (table === "evidences") {
             list = [...mockDb.evidences];
           } else if (table === "activity_evidences") {
@@ -118,7 +118,7 @@ vi.mock("@/lib/supabase/server", () => ({
               list = list.filter((item) => item[f.field] === f.val);
             } else if (f.op === "gte") {
               list = list.filter((item) => item[f.field] >= f.val);
-            } else if (f.op === "lte") {
+            } else if (f.op === "lt") { list = list.filter(item => item[f.field] < f.val); } else if (f.op === "lte") {
               list = list.filter((item) => item[f.field] <= f.val);
             } else if (f.op === "is") {
               list = list.filter((item) => item[f.field] === f.val);
@@ -228,6 +228,7 @@ describe("Phase 5: Excel Export & Reports", () => {
         from: "2026-09-01",
         to: "2026-09-30",
         includeEvidence: true,
+        category: "INTERNSHIP",
         evidenceLinkMode: "APP_PRIVATE",
       });
       expect(parsed.success).toBe(true);
@@ -282,7 +283,7 @@ describe("Phase 5: Excel Export & Reports", () => {
               id: "ev-1",
               type: "PHOTO" as const,
               title: "Screenshot Pipeline",
-              status: "READY",
+              status: "AVAILABLE",
             },
           ],
         },
@@ -304,7 +305,7 @@ describe("Phase 5: Excel Export & Reports", () => {
           activityDate: "2026-09-01",
           type: "PHOTO" as const,
           title: "Screenshot Pipeline",
-          status: "READY",
+          status: "AVAILABLE",
           url: null,
         },
         {
@@ -313,7 +314,7 @@ describe("Phase 5: Excel Export & Reports", () => {
           activityDate: "2026-09-01",
           type: "LINK" as const,
           title: "PR Link",
-          status: "READY",
+          status: "AVAILABLE",
           url: "https://github.com/org/repo/pull/42",
         },
         {
@@ -358,15 +359,15 @@ describe("Phase 5: Excel Export & Reports", () => {
       const headerRow = logbookSheet!.getRow(1);
       expect(headerRow.getCell(1).value).toBe("No");
       expect(headerRow.getCell(2).value).toBe("Tanggal");
-      expect(headerRow.getCell(5).value).toBe("Aktivitas");
-      expect(headerRow.getCell(7).value).toBe("Evidence");
+      expect(headerRow.getCell(5).value).toBe("Kegiatan");
+      expect(headerRow.getCell(7).value).toBe("Lampiran · klik untuk buka");
 
       // Verify row 2 data
       const dataRow1 = logbookSheet!.getRow(2);
       expect(dataRow1.getCell(1).value).toBe(1);
       expect(dataRow1.getCell(2).value).toBe("2026-09-01");
       expect(dataRow1.getCell(5).value).toBe("Setup CI/CD pipeline");
-      expect(dataRow1.getCell(7).value).toBe("1 Foto");
+      expect((dataRow1.getCell(7).value as any).hyperlink).toBe("https://internflow.example.com/evidence/ev-1");
 
       // Verify formula sanitization in row 3
       const dataRow2 = logbookSheet!.getRow(3);
@@ -378,34 +379,34 @@ describe("Phase 5: Excel Export & Reports", () => {
       expect(evidenceSheet?.views[0]?.state).toBe("frozen");
 
       const evHeaderRow = evidenceSheet!.getRow(1);
-      expect(evHeaderRow.getCell(1).value).toBe("Evidence ID");
-      expect(evHeaderRow.getCell(4).value).toBe("Type");
-      expect(evHeaderRow.getCell(6).value).toBe("URL");
-      expect(evHeaderRow.getCell(7).value).toBe("Status");
+      expect(evHeaderRow.getCell(1).value).toBe("Tanggal");
+      expect(evHeaderRow.getCell(3).value).toBe("Jenis");
+      expect(evHeaderRow.getCell(5).value).toBe("Klik untuk membuka");
+      expect(evHeaderRow.getCell(6).value).toBe("Status");
 
       // Verify row with valid photo link
       const evRow1 = evidenceSheet!.getRow(2);
-      expect(evRow1.getCell(1).value).toBe("ev-1");
-      expect(evRow1.getCell(4).value).toBe("PHOTO");
-      const urlCell1 = evRow1.getCell(6);
+      expect(evRow1.getCell(7).value).toBe("ev-1"); expect(evidenceSheet!.getColumn(7).hidden).toBe(true);
+      expect(evRow1.getCell(3).value).toBe("Foto");
+      const urlCell1 = evRow1.getCell(5);
       expect((urlCell1.value as any)?.hyperlink).toBe("https://internflow.example.com/evidence/ev-1");
 
       // Verify row with external link
       const evRow2 = evidenceSheet!.getRow(3);
-      expect(evRow2.getCell(4).value).toBe("LINK");
-      const urlCell2 = evRow2.getCell(6);
+      expect(evRow2.getCell(3).value).toBe("Tautan");
+      const urlCell2 = evRow2.getCell(5);
       expect((urlCell2.value as any)?.hyperlink).toBe("https://github.com/org/repo/pull/42");
 
       // Verify broken evidence row
       const evRow3 = evidenceSheet!.getRow(4);
-      expect(evRow3.getCell(7).value).toBe("BROKEN");
+      expect(evRow3.getCell(6).value).toBe("Tidak tersedia"); expect(evRow3.getCell(5).value).toBe("—");
     });
   });
 
   describe("5. Multi-User Isolation & Server Data Query", () => {
     it("reads all pages beyond the provider row limit", async () => {
       mockDb.activities = Array.from({ length: 1105 }, (_, index) => ({ id: `act-${String(index).padStart(4,"0")}`, user_id: userA.userId, activity_date: "2026-09-01", title: "Work", description: null, start_time: null, end_time: null, deleted_at: null, created_at: "2026-09-01T09:00:00Z" }));
-      const result = await getExportData({ from: "2026-09-01", to: "2026-09-30", includeEvidence: true, evidenceLinkMode: "APP_PRIVATE" });
+      const result = await getExportData({ from: "2026-09-01", to: "2026-09-30", includeEvidence: true, category: "INTERNSHIP", evidenceLinkMode: "APP_PRIVATE" });
       expect(result.activities).toHaveLength(1105); expect(result.activities.at(-1)?.id).toBe("act-1104");
     });
 
@@ -463,6 +464,7 @@ describe("Phase 5: Excel Export & Reports", () => {
         from: "2026-09-01",
         to: "2026-09-30",
         includeEvidence: true,
+        category: "INTERNSHIP",
         evidenceLinkMode: "APP_PRIVATE",
       });
 
@@ -473,6 +475,17 @@ describe("Phase 5: Excel Export & Reports", () => {
       expect(result.activities.some((a) => a.id === "act-a-deleted")).toBe(false);
     });
 
+    it("isolates all three categories for the same owner", async () => {
+      mockDb.activities = ["INTERNSHIP", "THESIS", "PERSONAL"].map(category => ({
+        id: category, user_id: userA.userId, work_category: category,
+        activity_date: "2026-09-10", title: category, deleted_at: null,
+        start_time: null, end_time: null, description: null, created_at: "2026-09-10T09:00:00Z",
+      }));
+      for (const category of ["INTERNSHIP", "THESIS", "PERSONAL"] as const) {
+        const data = await getExportData({ from: "2026-09-01", to: "2026-09-30", category, includeEvidence: true, evidenceLinkMode: "APP_PRIVATE" });
+        expect(data.activities.map(row => row.id)).toEqual([category]);
+      }
+    });
     it("sorts activities in chronological ascending (ASC) order", async () => {
       mockDb.activities = [
         {
@@ -511,6 +524,7 @@ describe("Phase 5: Excel Export & Reports", () => {
         from: "2026-09-01",
         to: "2026-09-30",
         includeEvidence: true,
+        category: "INTERNSHIP",
         evidenceLinkMode: "APP_PRIVATE",
       });
 
@@ -564,6 +578,7 @@ describe("Phase 5: Excel Export & Reports", () => {
           from: "2026-09-01",
           to: "2026-09-30",
           includeEvidence: true,
+          category: "INTERNSHIP",
           evidenceLinkMode: "APP_PRIVATE",
         }),
       });
@@ -572,10 +587,21 @@ describe("Phase 5: Excel Export & Reports", () => {
       expect(res.status).toBe(404);
       const json = await res.json();
       expect(json.error).toBe("EMPTY_RANGE");
-      expect(json.message).toBe("Tidak ada Activity pada rentang tanggal ini.");
+      expect(json.message).toBe("Belum ada kegiatan untuk kategori dan periode ini.");
     });
 
+    it("returns an actionable 422 for academic work without available evidence", async () => {
+      mockDb.activities = [{ id: "needs-proof", user_id: userA.userId, work_category: "THESIS", activity_date: "2026-09-10", title: "Analisis TA", deleted_at: null, created_at: "2026-09-10T09:00:00Z" }];
+      const response = await POST(new NextRequest("http://localhost:3000/api/reports/export-excel", {
+        method: "POST", body: JSON.stringify({ from: "2026-09-01", to: "2026-09-30", category: "THESIS", includeEvidence: true, evidenceLinkMode: "APP_PRIVATE" }),
+      }));
+      expect(response.status).toBe(422);
+      expect(await response.json()).toMatchObject({ error: "EVIDENCE_REQUIRED", missing: [{ title: "Analisis TA", href: "/activities/needs-proof" }] });
+      expect(mockDb.auditLogs).toHaveLength(0);
+    });
     it("returns 200 with xlsx stream, attachment headers, and records audit event", async () => {
+      mockDb.evidences = [{ id: "proof", user_id: userA.userId, type: "LINK", title: "Bukti", status: "AVAILABLE", deleted_at: null, link_evidences: { url: "https://example.com/proof" } }];
+      mockDb.activityEvidences = [{ activity_id: "act-1", evidence_id: "proof", attached_by: userA.userId }];
       mockDb.activities = [
         {
           id: "act-1",
@@ -596,6 +622,7 @@ describe("Phase 5: Excel Export & Reports", () => {
           from: "2026-09-01",
           to: "2026-09-30",
           includeEvidence: true,
+          category: "INTERNSHIP",
           evidenceLinkMode: "APP_PRIVATE",
         }),
       });
@@ -619,6 +646,8 @@ describe("Phase 5: Excel Export & Reports", () => {
         row_count: 1,
         evidence_mode: "APP_PRIVATE",
         include_evidence: true,
+        category: "INTERNSHIP",
+        share_id: null,
       });
     });
   });

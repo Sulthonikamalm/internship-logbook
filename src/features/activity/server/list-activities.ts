@@ -4,8 +4,9 @@ import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
 import type { Activity, ActivityStatus } from "../domain/types";
 import { isRealDate } from "../domain/date";
+import { workCategorySchema } from "@/features/work/domain/category";
 
-export type ActivityFilters = { page?: number; search?: string; date?: string; status?: string };
+export type ActivityFilters = { page?: number; search?: string; date?: string; status?: string; category?: string };
 export async function listActivities(filters: ActivityFilters) {
   const user = await requireActiveUser();
   const supabase = await createClient();
@@ -20,6 +21,8 @@ export async function listActivities(filters: ActivityFilters) {
     query = query.ilike("title", `%${term}%`);
   }
   if (filters.date && isRealDate(filters.date)) query = query.eq("activity_date", filters.date);
+  const category = workCategorySchema.safeParse(filters.category);
+  if (category.success) query = query.eq("work_category", category.data);
   if (filters.status && ["DRAFT", "READY", "ARCHIVED"].includes(filters.status)) {
     query = query.eq("status", filters.status as ActivityStatus);
   } else {

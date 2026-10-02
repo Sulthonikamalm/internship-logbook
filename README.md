@@ -58,6 +58,14 @@ npm run build
 
 Audit dan keputusan implementasi: [docs/OVERHAUL_AUDIT.md](docs/OVERHAUL_AUDIT.md). Hasil QA, batas validasi, dan inventaris perubahan: [docs/OVERHAUL_DELIVERY.md](docs/OVERHAUL_DELIVERY.md).
 
+Pekerjaan kategori kegiatan, Kanban, kalender, laporan untuk dosen, dan manajemen pengguna: [docs/WORKSPACE_V2_DELIVERY.md](docs/WORKSPACE_V2_DELIVERY.md).
+
+### Membagikan foto laporan kepada dosen
+
+Di halaman **Laporan**, pilih kategori, periode, lalu **Bagikan ke dosen** pada Akses foto. Pilih masa berlaku 30, 90, atau 180 hari dan unduh Excel. Tautan **Buka foto** dalam sheet Logbook dan Evidence Detail hanya membuka foto yang masuk dalam ekspor tersebut. Dosen tidak perlu akun InternFlow. Pemilik dapat mematikan tautan dari **Akses foto aktif** di halaman yang sama. Siapa pun yang memegang file Excel dapat membuka foto selama tautan masih aktif; kirim file hanya kepada penerima yang dimaksud. Google Drive tetap privat dan token akses tidak disimpan dalam bentuk mentah di database.
+
+Untuk dipakai dari perangkat dosen, jalankan situs pada alamat HTTPS publik dan set `APP_BASE_URL` ke origin situs tersebut sebelum membuat Excel. Nilai `http://localhost:3000` pada `.env.example` hanya untuk pengujian lokal. Saat memakai alamat lokal, antarmuka menjelaskan bahwa tautan belum dapat dibuka dari perangkat lain. Laporan yang sudah dibuat dengan alamat lokal perlu diekspor ulang setelah alamat publik dikonfigurasi.
+
 Gunakan Node **22.22.2+ pada cabang 22**, **24.15+ pada cabang 24**, atau **26+**. Validasi pekerjaan ini memakai Node 24.19.0; Node 22.18 yang terpasang di host terlalu lama untuk jsdom 30. Jalankan `npm run lint`, `npm run typecheck`, `npm test`, dan `npm run build` dengan runtime yang didukung.
 
 ### GitHub opsional

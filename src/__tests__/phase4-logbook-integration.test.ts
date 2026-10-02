@@ -115,7 +115,7 @@ vi.mock("@/lib/supabase/server", () => ({
         }
 
         if (table === "activities" || table === "logbook_activities") {
-          let list = [...fakeDb.activities];
+          let list = fakeDb.activities.map(item => ({ work_category: "INTERNSHIP", ...item }));
 
           for (const f of filters) {
             if (f.type === "eq") list = list.filter((item) => item[f.field] === f.value);

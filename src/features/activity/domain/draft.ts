@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { workCategorySchema } from "@/features/work/domain/category";
 
 const draftSchema = z.object({
+  workCategory: workCategorySchema.optional(),
   title: z.string().max(160),
   description: z.string().max(10000),
   activityDate: z.string(),
