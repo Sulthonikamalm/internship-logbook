@@ -21,9 +21,9 @@ cp .env.example .env.local
 
 Isi `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` dengan URL proyek dan publishable key Supabase. Simpan `.env.local` hanya di komputer sendiri; file ini diabaikan Git.
 
-Proyek Supabase cloud untuk pengembangan ini bernama **InternFlow** (`hsaddesgavcoygxdlwsm`). Migrasi Phase 3 telah diterapkan pada proyek tersebut, tetapi replay dari database kosong belum diverifikasi. Uji RLS berbasis pgTAP ada di `supabase/tests/database/` dan dijalankan dalam transaksi yang di-rollback.
+Proyek Supabase cloud untuk pengembangan ini bernama **InternFlow** (`hsaddesgavcoygxdlwsm`). Migrasi di `supabase/migrations/` sudah diterapkan pada proyek tersebut. Replay dari database kosong belum diverifikasi. Uji RLS berbasis pgTAP ada di `supabase/tests/database/` dan dijalankan dalam transaksi yang di-rollback.
 
-### Phase 3: foto Google Drive
+### Foto Google Drive
 
 Folder evidence adalah `FOLDER FOTO MAGANG` dengan ID `1wkcd8F6FHIFFTQaOsIffHNZCCPrp_7L5`. Akses umumnya harus **Dibatasi** dan hanya akun penyimpanan yang memiliki izin langsung. Server memeriksa izin folder sebelum membuka sesi upload. Foto diunggah melalui sesi resumable Drive, lalu server mengunduh dan memeriksa isi file sebelum menyimpan metadata `AVAILABLE` di Supabase. Pengguna melihat foto melalui route privat `/api/media/evidence/[id]`.
 
@@ -54,11 +54,9 @@ npm test
 npm run build
 ```
 
-## Overhaul dan Phase 8
+## Fitur dan validasi
 
-Audit dan keputusan implementasi: [docs/OVERHAUL_AUDIT.md](docs/OVERHAUL_AUDIT.md). Hasil QA, batas validasi, dan inventaris perubahan: [docs/OVERHAUL_DELIVERY.md](docs/OVERHAUL_DELIVERY.md).
-
-Pekerjaan kategori kegiatan, Kanban, kalender, laporan untuk dosen, dan manajemen pengguna: [docs/WORKSPACE_V2_DELIVERY.md](docs/WORKSPACE_V2_DELIVERY.md).
+Aturan produk ada di [PRD](PRD_Internship_Activity_Evidence_Logbook_System_v1.1.md). Perubahan kategori kegiatan, Kanban, kalender, laporan untuk dosen, manajemen pengguna, dan hasil QA dirangkum di [laporan implementasi](docs/WORKSPACE_V2_DELIVERY.md).
 
 ### Membagikan foto laporan kepada dosen
 
@@ -78,6 +76,4 @@ Hubungkan dari Integrasi, pilih akses repo privat hanya jika diperlukan, lalu la
 
 ### Migrasi dan regresi database
 
-Migrasi hardening 20261001214511, 20261001221333, 20261001222201, dan 20261002021632 sudah diterapkan ke proyek InternFlow. `supabase/tests/phase8_integrity.sql` membuktikan grants/RLS, gate evidence, versi/idempotensi, linkage Todo–Activity, lease sync, dan retensi historis dalam transaksi yang di-rollback. Skrip ini memerlukan database yang sudah memiliki schema InternFlow; jangan menyamakan hasilnya dengan replay migrasi dari database kosong.
-
-History cloud belum mencatat tiga migrasi lama Phase 4/6/7 meskipun object-nya sudah ada karena penerapan manual sebelumnya. Jangan langsung menjalankan `supabase db push` ke cloud. Setelah membandingkan schema dengan berkas migrasi dan memastikan tidak ada drift, gunakan CLI `supabase migration repair --status applied` untuk versi 20261001000000, 20261001010000, dan 20261001020000 pada proyek yang benar. Repair hanya memperbaiki history, bukan menjalankan SQL. Replay penuh tetap perlu database disposable lokal: aktifkan Docker daemon, jalankan `supabase start`, lalu `supabase db reset --local` dan `supabase test db`. Regresi tambahan dapat dijalankan melalui psql terhadap DB lokal dengan `-v ON_ERROR_STOP=1 -f supabase/tests/phase8_integrity.sql`.
+Migrasi terurut dalam `supabase/migrations/` adalah sumber schema. Jangan jalankan ulang SQL yang sudah tercatat di cloud. `supabase/tests/phase8_integrity.sql` dan `supabase/tests/workspace_v2_integrity.sql` menguji grants/RLS, gate evidence, versi/idempotensi, linkage Todo–Activity, serta akses foto laporan dalam transaksi yang di-rollback. Skrip ini memerlukan database yang sudah memiliki schema InternFlow; hasilnya bukan bukti replay migrasi dari database kosong. Replay penuh memerlukan database lokal disposable dan Docker daemon, yang belum tersedia saat validasi terakhir.
