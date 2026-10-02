@@ -74,7 +74,7 @@ export function KanbanBoard({ initialStages: stages, initialTodos, today, timeZo
     getTodoDetail(selected).then(result => { if (valid) { setDetail(result); setDetailError(result ? "" : "Todo tidak ditemukan."); } }).catch(() => { if (valid) setDetailError("Detail belum dapat dimuat. Coba lagi."); });
     return () => { valid = false; };
   }, [selected, detailVersion, detailRevision]);
-  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 8 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 12 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const grouped = useMemo(() => {
     const map = new Map(stages.map(stage => [stage.id, [] as TodoItem[]]));
     for (const todo of [...todos].sort((a,b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))) {

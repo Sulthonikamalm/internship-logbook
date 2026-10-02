@@ -20,16 +20,14 @@ type CardProps = {
 
 export function KanbanCard(props: CardProps) {
   const { todo, currentStage, pending = false } = props;
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: todo.id, data: { type: "Todo", todo, stageId: currentStage.id }, disabled: pending,
   });
-  return <article ref={setNodeRef} data-todo-id={todo.id}
-    style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .3 : 1, touchAction: "pan-y" }}
-    onMouseDown={event => listeners?.onMouseDown?.(event)} onTouchStart={event => listeners?.onTouchStart?.(event)}
+  return <article ref={setNodeRef} {...attributes} {...listeners} data-todo-id={todo.id}
+    style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .3 : 1, touchAction: "none", cursor: isDragging ? "grabbing" : "grab" }}
     aria-busy={pending} data-overdue={Boolean(todo.dueDate && !currentStage.isTerminal && todo.dueDate < props.today)} className="kanban-task">
     <CardContent {...props} onClick={() => { if (!isDragging) props.onClick?.(); }}
-      handle={<button ref={setActivatorNodeRef} {...attributes} {...listeners} type="button" aria-label={`Geser ${todo.title}`} disabled={pending}
-        className="flex size-11 shrink-0 touch-none items-center justify-center rounded-xl text-muted-foreground"><GripVertical size={16} /></button>} />
+      handle={<span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center text-muted-foreground"><GripVertical size={16} /></span>} />
   </article>;
 }
 
@@ -57,7 +55,7 @@ function CardContent({ todo, currentStage, allStages, today, onClick, onMoveTo, 
       {["HIGH", "URGENT"].includes(todo.priority) && <span className="text-warning">{todo.priority === "URGENT" ? "Mendesak" : "Prioritas"}</span>}
     </div>
     {todo.evidenceHealth === "EVIDENCE_INCOMPLETE" && category !== "PERSONAL" && <p className="mt-3 flex items-center gap-1.5 text-xs text-warning"><AlertTriangle size={14} />Lengkapi bukti</p>}
-    {onMoveTo && !preview && <div onMouseDown={event => event.stopPropagation()} onTouchStart={event => event.stopPropagation()} className="mt-3 flex items-center gap-1 border-t border-border/60 pt-2">
+    {onMoveTo && !preview && <div onPointerDown={event => event.stopPropagation()} className="mt-3 flex items-center gap-1 border-t border-border/60 pt-2">
       {next && <Button variant="ghost" size="sm" disabled={pending} onClick={() => onMoveTo(next.id)} className="min-w-0 flex-1 gap-1 px-1 text-xs">{next.name}<ChevronRight size={13} /></Button>}
       {!currentStage.isTerminal && done && <Button variant="ghost" size={next ? "icon" : "sm"} disabled={pending} onClick={() => onMoveTo(done.id)} aria-label={`Selesaikan ${todo.title}`} className="gap-1 text-success"><Check size={17} />{!next && "Selesaikan"}</Button>}
       {currentStage.isTerminal && previous && <Button variant="ghost" size="sm" disabled={pending} onClick={() => onMoveTo(previous.id)} className="w-full text-xs">Buka kembali</Button>}
