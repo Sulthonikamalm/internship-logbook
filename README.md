@@ -1,79 +1,134 @@
-# internship-logbook
+<p align="center">
+  <img src="public/internflow-logo.png" alt="Logo InternFlow" width="300" />
+</p>
 
-# InternFlow — Internship Activity & Evidence Logbook System
+<h1 align="center">Kerja tercatat. Bukti tertata. Laporan siap.</h1>
 
-Sistem pencatatan aktivitas magang dan evidence berbasis Next.js, Tailwind CSS, Base UI, Supabase, Google Drive, dan GitHub opsional.
+<p align="center">
+  InternFlow menyatukan aktivitas, Todo, bukti pekerjaan, kalender, dan laporan Excel
+  untuk kegiatan magang, tugas akhir, serta pekerjaan personal.
+</p>
 
-## Tech Stack
-- **Framework**: Next.js 16 (App Router), React 19, TypeScript
-- **UI**: Tailwind CSS v4, semantic tokens, Base UI dialogs, Radix Slot, Sonner
-- **Database & Auth**: Supabase (@supabase/ssr)
-- **Central Storage**: Google Drive API
-- **Testing**: Vitest & React Testing Library
+<p align="center">
+  <strong>Magang</strong> · <strong>Tugas Akhir</strong> · <strong>Personal</strong>
+</p>
 
-## Getting Started
+---
 
-1. Pasang dependency dan salin environment file:
-```bash
-npm install
-cp .env.example .env.local
-```
+## 💡 Dari masalah ke solusi
 
-Isi `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` dengan URL proyek dan publishable key Supabase. Simpan `.env.local` hanya di komputer sendiri; file ini diabaikan Git.
+| Yang sering terjadi | Cara InternFlow membantu |
+| --- | --- |
+| 📝 Kegiatan baru dicatat menjelang tenggat laporan | Catat Activity langsung dari ponsel, bahkan tanpa membuat Todo. |
+| 📷 Foto menumpuk di perangkat dan sulit ditemukan | Simpan foto di Evidence Library berbasis Google Drive privat, lalu lampirkan kembali saat dibutuhkan. |
+| 🧩 Tugas, progres, dan pekerjaan yang selesai tersebar | Kelola Todo melalui Kanban atau List; lihat riwayat kerja di kalender. |
+| 📊 Logbook dan lampiran harus dirapikan ulang secara manual | Pilih periode dan kategori, lalu unduh Excel dengan tautan bukti yang relevan. |
 
-Proyek Supabase cloud untuk pengembangan ini bernama **InternFlow** (`hsaddesgavcoygxdlwsm`). Migrasi di `supabase/migrations/` sudah diterapkan pada proyek tersebut. Replay dari database kosong belum diverifikasi. Uji RLS berbasis pgTAP ada di `supabase/tests/database/` dan dijalankan dalam transaksi yang di-rollback.
+## 🧭 Alur kerja
 
-### Foto Google Drive
+**Pilih kategori** → **catat Activity atau buat Todo** → **lampirkan bukti bila diperlukan** → **tinjau kalender dan logbook** → **ekspor laporan**.
 
-Folder evidence adalah `FOLDER FOTO MAGANG` dengan ID `1wkcd8F6FHIFFTQaOsIffHNZCCPrp_7L5`. Akses umumnya harus **Dibatasi** dan hanya akun penyimpanan yang memiliki izin langsung. Server memeriksa izin folder sebelum membuka sesi upload. Foto diunggah melalui sesi resumable Drive, lalu server mengunduh dan memeriksa isi file sebelum menyimpan metadata `AVAILABLE` di Supabase. Pengguna melihat foto melalui route privat `/api/media/evidence/[id]`.
+Activity dapat dibuat tanpa Todo. Todo **Magang** dan **Tugas Akhir** memerlukan evidence yang tersedia sebelum masuk tahap Review atau Done; saat selesai, Todo dapat dicatat otomatis sebagai Activity. Todo **Personal** tidak memerlukan evidence dan tetap muncul dalam riwayat pekerjaan tanpa bercampur dengan logbook magang.
 
-Konektor Google Drive di Codex hanya memberi akses kepada agent saat bekerja; aplikasi Next.js tidak mewarisi token konektor itu. Untuk menjalankan upload nyata:
+## ✨ Fitur utama
 
-1. Di [Google Cloud Console](https://console.cloud.google.com/), buat/pilih project dan aktifkan Google Drive API. Siapkan OAuth consent screen untuk akun Google pemilik folder. Scope yang dipakai helper adalah `https://www.googleapis.com/auth/drive`, yang memberi akses luas ke Drive akun penyimpanan; sebaiknya gunakan akun khusus evidence jika memungkinkan.
-2. Buat OAuth client jenis **Web application** dengan redirect URI persis `http://127.0.0.1:8765/callback`.
-3. Isi `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` pada `.env.local` di komputer sendiri. `GOOGLE_DRIVE_ROOT_FOLDER_ID` sudah menunjuk ke folder di atas.
-4. Jalankan `npm run google:setup`, buka URL yang ditampilkan, dan berikan izin menggunakan akun pemilik folder. Helper memverifikasi izin folder lalu menulis `GOOGLE_REFRESH_TOKEN` ke `.env.local` tanpa mencetak token.
-5. Restart server Next.js, kemudian uji satu foto nyata di Evidence Library dan aksesnya dari akun pengguna lain.
+| Area | Yang bisa dilakukan |
+| --- | --- |
+| 🏠 **Beranda** | Akses cepat ke pencatatan, upload, Todo, laporan, dan area lain dari ponsel. |
+| ✅ **Todo** | Pindahkan pekerjaan di Kanban, gunakan tampilan List pada layar kecil, dan pantau progres per kategori. |
+| ✍️ **Activity** | Catat pekerjaan langsung atau dari Todo yang selesai, lalu tambahkan bukti sesuai kebutuhan. |
+| 📎 **Evidence** | Unggah foto, simpan tautan, dan pilih commit GitHub secara eksplisit sebagai bukti. |
+| 📅 **Kalender & Logbook** | Tinjau pekerjaan yang selesai dan susun catatan harian. |
+| 📊 **Laporan** | Ekspor Excel per kategori dan periode, dengan tautan foto yang dapat dibagikan secara terbatas. |
+| 🔗 **Integrasi** | Hubungkan GitHub jika diperlukan; fitur utama tetap berjalan tanpanya. |
+| 🔐 **Admin** | Pemilik yang ditetapkan dapat menambahkan pengguna dari dashboard. |
 
-Jangan menaruh tiga kredensial itu pada variabel `NEXT_PUBLIC_*`, source code, issue, atau PR. Runtime memakai OAuth akun pusat hanya di server untuk membuat folder, memvalidasi file, membaca foto, dan menghapusnya. Google menyatakan refresh token OAuth untuk consent screen **External/Testing** dapat kedaluwarsa setelah tujuh hari; siapkan status aplikasi yang sesuai sebelum memakai upload terus-menerus. Lihat [panduan OAuth Google](https://developers.google.com/identity/protocols/oauth2) dan [scope Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+## 🖼️ Sekilas tampilan
 
-Pekerjaan rekonsiliasi internal diproses lewat `POST /api/internal/evidence-reconcile` dengan Bearer `EVIDENCE_RECONCILE_SECRET` (minimal 32 karakter) dan memerlukan `SUPABASE_SERVICE_ROLE_KEY` pada server. Jadwalkan atau jalankan endpoint itu hanya dari lingkungan tepercaya. Kegagalan penghapusan Drive mempertahankan metadata sebagai `DELETE_PENDING` hingga job berhasil.
+| Beranda mobile | Kanban desktop |
+| :---: | :---: |
+| <img src="docs/qa/workspace-v2/home-mobile.png" alt="Beranda InternFlow di ponsel" width="260" /> | <img src="docs/qa/workspace-v2/kanban-desktop.png" alt="Kanban InternFlow di desktop" width="620" /> |
 
-Login pengguna tetap melalui Supabase. Integrasi commit sekarang tersedia secara opsional; setiap pengguna mengotorisasi akun GitHub mereka sendiri.
+## 🚀 Menjalankan di lokal
 
-Jalankan development server:
-```bash
+Gunakan Node.js **22.22.2+**, **24.15+**, atau **26+**. Setelah repository di-clone:
+
+```powershell
+npm ci
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-3. Jalankan testing & lint:
-```bash
+Buka **http://localhost:3000**. Pada macOS/Linux, ganti `Copy-Item` dengan `cp`. Isi `.env.local` sebelum memakai fitur yang memerlukan layanan eksternal; file ini sudah diabaikan Git.
+
+| Konfigurasi | Kegunaan |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Koneksi database dan login Supabase. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Operasi server tepercaya, termasuk pengelolaan pengguna dan tautan foto laporan. Jangan gunakan awalan `NEXT_PUBLIC_`. |
+| `GOOGLE_*`, `EVIDENCE_RECONCILE_SECRET` | Upload, pembacaan, dan rekonsiliasi foto privat. |
+| `APP_BASE_URL` | Asal URL pada tautan laporan dan callback integrasi. |
+| `GITHUB_*` | OAuth dan sinkronisasi commit; opsional. |
+
+> **Rahasia tetap di server.** Jangan commit `.env.local`, menaruh credential di variabel `NEXT_PUBLIC_*`, atau membagikannya melalui issue dan screenshot.
+
+<details>
+<summary><strong>📷 Menyiapkan Google Drive</strong></summary>
+
+1. Aktifkan Google Drive API pada Google Cloud dan siapkan OAuth client **Web application** dengan redirect URI `http://127.0.0.1:8765/callback`.
+2. Buat folder evidence dengan akses **Dibatasi**. Isi `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, dan `GOOGLE_DRIVE_ROOT_FOLDER_ID` di `.env.local`.
+3. Jalankan `npm run google:setup`. Helper memverifikasi akses folder dan menyimpan `GOOGLE_REFRESH_TOKEN` ke `.env.local`. Setelah itu, restart server.
+4. Isi `EVIDENCE_RECONCILE_SECRET` dengan nilai acak minimal 32 karakter. Endpoint `POST /api/internal/evidence-reconcile` hanya boleh dipanggil dari lingkungan tepercaya.
+
+Aplikasi menggunakan OAuth akun penyimpanan pada server; koneksi Google Drive milik alat pengembangan tidak otomatis menjadi credential aplikasi. Scope `drive` memberi akses luas, jadi gunakan akun penyimpanan khusus bila memungkinkan. Untuk consent screen **External/Testing**, refresh token dapat kedaluwarsa setelah tujuh hari. Lihat [panduan OAuth Google](https://developers.google.com/identity/protocols/oauth2) dan [scope Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+
+</details>
+
+<details>
+<summary><strong>🔗 Menyiapkan GitHub (opsional)</strong></summary>
+
+Isi `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, dan `GITHUB_CALLBACK_URL`. Callback harus persis `<APP_BASE_URL>/api/integrations/github/callback` dengan origin yang sama. Buat `GITHUB_TOKEN_ENCRYPTION_KEY` berupa 32 byte/64 karakter hex:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Simpan kunci tersebut di environment server dan pertahankan antar-deployment; menggantinya memerlukan migrasi token atau pengguna menghubungkan ulang akun. Pengguna memilih commit sebelum menjadi evidence. Disconnect menghapus token aplikasi tanpa menghapus evidence historis. Akses repository privat memerlukan scope GitHub `repo` yang luas, sehingga hanya aktifkan bila dibutuhkan.
+
+</details>
+
+## 📊 Tautan foto untuk dosen
+
+Saat mengekspor laporan, **akses foto default bersifat privat**. Jika dosen perlu membuka foto tanpa akun InternFlow:
+
+1. Di **Laporan**, pilih kategori dan periode, lalu aktifkan **Bagikan ke dosen**.
+2. Pilih masa berlaku **30, 90, atau 180 hari**, kemudian unduh Excel.
+3. Tautan **Buka foto** pada sheet **Logbook** dan **Evidence Detail** hanya berlaku untuk foto yang masuk dalam ekspor itu.
+4. Hentikan akses kapan saja dari daftar **Akses foto aktif** di halaman Laporan.
+
+Foto tetap berada di Drive privat. Pemegang file Excel dapat membuka foto yang dibagikan selama tautannya aktif, jadi kirim file hanya kepada penerima yang dituju.
+
+> **Akses dari perangkat dosen memerlukan situs HTTPS publik.** Atur `APP_BASE_URL` ke alamat publik **sebelum** mengekspor. Excel yang dibuat saat URL masih `http://localhost:3000` harus diekspor ulang setelah situs dipublikasikan.
+
+## 🛡️ Privasi dan aturan data
+
+- Aktivitas, Todo, dan evidence dibatasi per pemilik melalui aturan akses database.
+- Bukti akademik harus tersedia sebelum pekerjaan melewati tahap yang mensyaratkannya.
+- GitHub adalah integrasi pilihan; commit tidak otomatis berubah menjadi Activity.
+- Tautan foto laporan memiliki masa berlaku, dapat dicabut, dan tidak membuat folder Drive menjadi publik.
+
+## 🧪 Pemeriksaan proyek
+
+```powershell
 npm run lint
-npx tsc --noEmit
+npm run typecheck
 npm test
 npm run build
 ```
 
-## Fitur dan validasi
+Migrasi database tersimpan berurutan di `supabase/migrations/`. Jangan jalankan ulang migrasi yang sudah tercatat di cloud. Regresi SQL berada di `supabase/tests/`; pengujian pada database yang sudah ada tidak menggantikan replay migrasi dari database kosong.
 
-Aturan produk ada di [PRD](PRD_Internship_Activity_Evidence_Logbook_System_v1.1.md). Perubahan kategori kegiatan, Kanban, kalender, laporan untuk dosen, manajemen pengguna, dan hasil QA dirangkum di [laporan implementasi](docs/WORKSPACE_V2_DELIVERY.md).
+**Stack:** Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · Supabase · Google Drive API · ExcelJS · Vitest.
 
-### Membagikan foto laporan kepada dosen
+---
 
-Di halaman **Laporan**, pilih kategori, periode, lalu **Bagikan ke dosen** pada Akses foto. Pilih masa berlaku 30, 90, atau 180 hari dan unduh Excel. Tautan **Buka foto** dalam sheet Logbook dan Evidence Detail hanya membuka foto yang masuk dalam ekspor tersebut. Dosen tidak perlu akun InternFlow. Pemilik dapat mematikan tautan dari **Akses foto aktif** di halaman yang sama. Siapa pun yang memegang file Excel dapat membuka foto selama tautan masih aktif; kirim file hanya kepada penerima yang dimaksud. Google Drive tetap privat dan token akses tidak disimpan dalam bentuk mentah di database.
-
-Untuk dipakai dari perangkat dosen, jalankan situs pada alamat HTTPS publik dan set `APP_BASE_URL` ke origin situs tersebut sebelum membuat Excel. Nilai `http://localhost:3000` pada `.env.example` hanya untuk pengujian lokal. Saat memakai alamat lokal, antarmuka menjelaskan bahwa tautan belum dapat dibuka dari perangkat lain. Laporan yang sudah dibuat dengan alamat lokal perlu diekspor ulang setelah alamat publik dikonfigurasi.
-
-Gunakan Node **22.22.2+ pada cabang 22**, **24.15+ pada cabang 24**, atau **26+**. Validasi pekerjaan ini memakai Node 24.19.0; Node 22.18 yang terpasang di host terlalu lama untuk jsdom 30. Jalankan `npm run lint`, `npm run typecheck`, `npm test`, dan `npm run build` dengan runtime yang didukung.
-
-### GitHub opsional
-
-Isi `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, dan `GITHUB_CALLBACK_URL` di server. Callback harus tepat `<APP_BASE_URL>/api/integrations/github/callback`, dengan origin yang sama. Untuk development ini, gunakan `http://localhost:3000` secara konsisten. Konektor GitHub Codex tidak menggantikan OAuth per pengguna di InternFlow.
-
-`GITHUB_TOKEN_ENCRYPTION_KEY` adalah 32 byte dalam bentuk 64 karakter hex. Buat dengan `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`, simpan di secret environment server, dan pertahankan nilainya antar restart/deployment. Jangan mengganti kunci tanpa prosedur migrasi token atau reconnect; token memakai AES-256-GCM dan kunci tidak pernah dikirim ke browser.
-
-Hubungkan dari Integrasi, pilih akses repo privat hanya jika diperlukan, lalu lakukan sync manual. OAuth publik memakai `read:user`; GitHub OAuth meminta scope `repo` yang luas untuk repo privat, dan UI menjelaskan izin tersebut sebelum pengguna memilihnya. Sync default mengambil hingga 10 repo terbaru dan hingga 100 commit per repo; filter `owner/repository` memungkinkan memilih repo lain. Hanya commit dari identitas akun terhubung yang masuk cache. Pilih commit secara eksplisit sebagai evidence, lalu lampirkan ke Activity atau Todo. Disconnect menghapus token aplikasi dan mempertahankan evidence historis; akses aplikasi dapat dicabut penuh melalui pengaturan GitHub pengguna.
-
-### Migrasi dan regresi database
-
-Migrasi terurut dalam `supabase/migrations/` adalah sumber schema. Jangan jalankan ulang SQL yang sudah tercatat di cloud. `supabase/tests/phase8_integrity.sql` dan `supabase/tests/workspace_v2_integrity.sql` menguji grants/RLS, gate evidence, versi/idempotensi, linkage Todo–Activity, serta akses foto laporan dalam transaksi yang di-rollback. Skrip ini memerlukan database yang sudah memiliki schema InternFlow; hasilnya bukan bukti replay migrasi dari database kosong. Replay penuh memerlukan database lokal disposable dan Docker daemon, yang belum tersedia saat validasi terakhir.
+📚 **Rujukan:** [PRD dan aturan produk](PRD_Internship_Activity_Evidence_Logbook_System_v1.1.md) · [Catatan implementasi dan QA](docs/WORKSPACE_V2_DELIVERY.md)
