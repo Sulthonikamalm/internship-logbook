@@ -10,8 +10,8 @@ export async function getWorkRecords(from: string, to: string, category?: WorkCa
   const start = new Date(`${from}T00:00:00Z`); start.setUTCDate(start.getUTCDate() - 1);
   const end = new Date(`${to}T00:00:00Z`); end.setUTCDate(end.getUTCDate() + 2);
   const activities = await readAllRows((first, last) => {
-    let query = db.from("activities").select("id,title,description,activity_date,start_time,end_time,status,work_category,todo_id,completion_transition_id")
-      .eq("user_id", user.userId).is("deleted_at", null).gte("activity_date", from).lte("activity_date", to);
+    let query = db.from("activities").select("id,title,description,activity_date,start_time,end_time,status,work_category,todo_id,completion_transition_id,created_at,deleted_at")
+      .eq("user_id", user.userId).gte("activity_date", from).lte("activity_date", to);
     if (category) query = query.eq("work_category", category);
     return query.order("activity_date").order("id").range(first, last);
   }, "Catatan pekerjaan gagal dimuat.");

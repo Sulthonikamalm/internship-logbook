@@ -128,6 +128,7 @@
 .kanban-column[data-stage="REVIEW"] { background:#f1eef9; }
 .kanban-column[data-stage="DONE"] { background:#eaf5ef; }
 .kanban-task { background:white; border:1px solid rgba(206,217,234,.65); border-radius:.875rem; padding:.75rem; box-shadow:0 2px 6px rgba(29,51,89,.025); cursor:grab; }
+.kanban-task[data-overdue="true"] { background:#fff8f7; border-color:#efb8b2; box-shadow:inset 3px 0 0 #dc6258,0 2px 6px rgba(100,35,28,.035); }
 .kanban-task-dragging { box-shadow:0 14px 40px rgba(25,49,90,.15); border-color:#8eb4f4; }
 .completion-confetti { position:fixed; z-index:55; pointer-events:none; width:0; height:0; }
 .completion-confetti i { position:absolute; width:5px; height:8px; border-radius:1px; animation:completion-burst 950ms cubic-bezier(.14,.67,.25,1) both; }

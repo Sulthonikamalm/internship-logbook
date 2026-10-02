@@ -26,7 +26,7 @@ export function KanbanCard(props: CardProps) {
   return <article ref={setNodeRef} data-todo-id={todo.id}
     style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .3 : 1, touchAction: "pan-y" }}
     onMouseDown={event => listeners?.onMouseDown?.(event)} onTouchStart={event => listeners?.onTouchStart?.(event)}
-    aria-busy={pending} className="kanban-task">
+    aria-busy={pending} data-overdue={Boolean(todo.dueDate && !currentStage.isTerminal && todo.dueDate < props.today)} className="kanban-task">
     <CardContent {...props} onClick={() => { if (!isDragging) props.onClick?.(); }}
       handle={<button ref={setActivatorNodeRef} {...attributes} {...listeners} type="button" aria-label={`Geser ${todo.title}`} disabled={pending}
         className="flex size-11 shrink-0 touch-none items-center justify-center rounded-xl text-muted-foreground"><GripVertical size={16} /></button>} />
@@ -35,7 +35,7 @@ export function KanbanCard(props: CardProps) {
 
 /** A visual copy must not register a second sortable node or enter the accessibility tree. */
 export function KanbanCardPreview(props: CardProps) {
-  return <article aria-hidden="true" className="kanban-task kanban-task-dragging">
+  return <article aria-hidden="true" data-overdue={Boolean(props.todo.dueDate && !props.currentStage.isTerminal && props.todo.dueDate < props.today)} className="kanban-task kanban-task-dragging">
     <CardContent {...props} preview handle={<span className="flex size-11 shrink-0 items-center justify-center text-muted-foreground"><GripVertical size={16} /></span>} />
   </article>;
 }
@@ -52,7 +52,7 @@ function CardContent({ todo, currentStage, allStages, today, onClick, onMoveTo, 
     <div className="flex items-center justify-between gap-1"><span className="category-chip" data-category={category}>{categoryLabels[category]}</span>{handle}</div>
     {preview ? <p className={titleClass}>{title}</p> : <button type="button" onClick={onClick} disabled={pending} className={titleClass}>{title}</button>}
     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-muted-foreground">
-      {todo.dueDate && <span className={`flex items-center gap-1 ${late ? "text-destructive" : ""}`}><CalendarDays size={13} />{new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${todo.dueDate}T12:00:00Z`))}</span>}
+      {todo.dueDate && <span className={`flex items-center gap-1 ${late ? "font-semibold text-destructive" : ""}`}><CalendarDays size={13} />{late ? "Terlambat · " : ""}{new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${todo.dueDate}T12:00:00Z`))}</span>}
       {Boolean(todo.evidenceCount) && <span className="flex items-center gap-1" aria-label={`${todo.evidenceCount} evidence`}><Paperclip size={13} />{todo.evidenceCount}</span>}
       {["HIGH", "URGENT"].includes(todo.priority) && <span className="text-warning">{todo.priority === "URGENT" ? "Mendesak" : "Prioritas"}</span>}
     </div>

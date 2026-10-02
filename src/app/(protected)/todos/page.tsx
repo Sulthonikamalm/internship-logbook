@@ -10,5 +10,5 @@ export default async function TodosPage({ searchParams }: { searchParams: Promis
   const user = await requireActiveUser();
   const [board, params] = await Promise.all([getBoardData(), searchParams]);
   const selectedCategory = workCategorySchema.safeParse(params.category);
-  return <div className="space-y-7"><PageHeader title="Tugas" description="Magang, tugas akhir, dan kegiatan personal." /><KanbanBoard key={`${params.category ?? "ALL"}:${params.todo ?? ""}:${params.new ?? ""}`} initialStages={board.stages} initialTodos={board.todos} today={localDateAt(new Date(), user.timezone)} initialCreate={params.new === "1"} initialCategory={selectedCategory.success ? selectedCategory.data : "ALL"} initialTodoId={params.todo && board.todos.some(todo => todo.id === params.todo) ? params.todo : null} /></div>;
+  return <div className="space-y-7"><PageHeader title="Tugas" description="Magang, tugas akhir, dan kegiatan personal." /><KanbanBoard key={`${params.category ?? "ALL"}:${params.todo ?? ""}:${params.new ?? ""}`} initialStages={board.stages} initialTodos={board.todos} today={localDateAt(new Date(), user.timezone)} timeZone={user.timezone} initialCreate={params.new === "1"} initialCategory={selectedCategory.success ? selectedCategory.data : "ALL"} initialTodoId={params.todo ?? null} /></div>;
 }

@@ -15,7 +15,7 @@ export async function getTodoDetail(todoId: string): Promise<TodoDetailItem | nu
   const [stages, evidenceRows, activityRows, history] = await Promise.all([
     supabase.from("todo_stages").select("*"),
     readAllRows((from, to) => supabase.from("todo_evidences").select("id,evidence_id,stage_id,attached_at,evidences!inner(id,type,title,status,link_evidences(url),github_evidences(commit_url))").eq("todo_id", todoId).eq("attached_by", user.userId).eq("evidences.user_id", user.userId).is("evidences.deleted_at", null).order("attached_at", { ascending: false }).order("id").range(from, to), "Lampiran Todo gagal dimuat."),
-    readAllRows((from, to) => supabase.from("activities").select("id,title,activity_date,start_time,end_time").eq("todo_id", todoId).eq("user_id", user.userId).is("deleted_at", null).order("activity_date", { ascending: false }).order("id").range(from, to), "Activity terkait gagal dimuat."),
+    readAllRows((from, to) => supabase.from("canonical_activities").select("id,title,activity_date,start_time,end_time").eq("todo_id", todoId).eq("user_id", user.userId).is("deleted_at", null).order("activity_date", { ascending: false }).order("id").range(from, to), "Activity terkait gagal dimuat."),
     readAllRows((from, to) => supabase.from("todo_transitions").select("id,todo_id,user_id,from_stage_id,to_stage_id,note,evidence_count,idempotency_key,created_at").eq("todo_id", todoId).eq("user_id", user.userId).order("created_at", { ascending: false }).order("id").range(from, to), "Histori Todo gagal dimuat."),
   ]);
   if (stages.error) throw new Error("Tahapan Todo gagal dimuat.");

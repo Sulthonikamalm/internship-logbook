@@ -11,7 +11,7 @@ import type { LogbookEvidenceItem, LogbookFilterInput, LogbookRow, NormalizedLog
 export type LogbookRowsResult = { rows: LogbookRow[]; count: number; totalUnfilteredCount: number; page: number; pageSize: number; totalPages: number; filters: NormalizedLogbookFilters };
 export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<LogbookRowsResult> {
   const user = await requireActiveUser(); const filters = normalizeLogbookFilters(rawParams, user.timezone); const supabase = await createClient();
-  const total = await supabase.from("activities").select("id", { count: "exact", head: true }).eq("user_id", user.userId).eq("work_category", parseWorkCategory(filters.category)).is("deleted_at", null);
+  const total = await supabase.from("canonical_activities").select("id", { count: "exact", head: true }).eq("user_id", user.userId).eq("work_category", parseWorkCategory(filters.category)).is("deleted_at", null);
   if (total.error) throw new Error("Jumlah Activity belum dapat dimuat.");
   let query = supabase.from("logbook_activities").select("*", { count: "exact" }).eq("user_id", user.userId).eq("work_category", parseWorkCategory(filters.category)).is("deleted_at", null);
   if (filters.from) query = query.gte("activity_date", filters.from);
@@ -24,7 +24,7 @@ export async function getLogbookRows(rawParams: LogbookFilterInput): Promise<Log
   if (result.error) throw new Error("Data logbook gagal dimuat.");
   const activities = result.data ?? []; const evidenceMap = new Map<string, LogbookEvidenceItem[]>();
   if (activities.length) {
-    const relations = await supabase.from("activity_evidences").select("activity_id,evidence_id,attached_at").in("activity_id", activities.map(row => row.id)).eq("attached_by", user.userId).order("attached_at", { ascending: false });
+    const relations = await supabase.from("canonical_activity_evidences").select("activity_id,evidence_id,attached_at").in("activity_id", activities.map(row => row.id)).eq("attached_by", user.userId).order("attached_at", { ascending: false });
     if (relations.error) throw new Error("Lampiran logbook gagal dimuat.");
     const ids = [...new Set((relations.data ?? []).map(row => row.evidence_id))];
     if (ids.length) {

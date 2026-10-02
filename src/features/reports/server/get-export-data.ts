@@ -16,9 +16,9 @@ export async function getExportData(input: Omit<ExportLogbookInput, "shareExpire
   const { user, records } = await getWorkRecords(input.from, input.to, input.category);
   const db = await createClient();
   const activityIds = records.flatMap(row => row.activityId ? [row.activityId] : []);
-  const todoIds = [...new Set(records.flatMap(row => row.todoId ? [row.todoId] : []))];
+  const todoIds = [...new Set(records.flatMap(row => row.todoId && row.isCompletion ? [row.todoId] : []))];
   const [activityRelations, todoRelations] = await Promise.all([
-    batches(activityIds, ids => readAllRows((from, to) => db.from("activity_evidences").select("activity_id,evidence_id").in("activity_id", ids).eq("attached_by", user.userId).order("activity_id").order("evidence_id").range(from, to), "Lampiran aktivitas gagal dimuat.")),
+    batches(activityIds, ids => readAllRows((from, to) => db.from("canonical_activity_evidences").select("activity_id,evidence_id").in("activity_id", ids).eq("attached_by", user.userId).order("activity_id").order("evidence_id").range(from, to), "Lampiran aktivitas gagal dimuat.")),
     batches(todoIds, ids => readAllRows((from, to) => db.from("todo_evidences").select("todo_id,evidence_id").in("todo_id", ids).eq("attached_by", user.userId).order("todo_id").order("evidence_id").range(from, to), "Lampiran tugas gagal dimuat.")),
   ]);
   const evidenceIds = [...new Set([...activityRelations, ...todoRelations].map(row => row.evidence_id))];
@@ -30,7 +30,9 @@ export async function getExportData(input: Omit<ExportLogbookInput, "shareExpire
   for (const row of todoRelations) { const list = byTodo.get(row.todo_id) ?? []; list.push(row); byTodo.set(row.todo_id, list); }
   const evidenceDetails: ExportDetailEvidenceItem[] = [];
   const activities = records.map(record => {
-    const relations = record.activityId ? byActivity.get(record.activityId) ?? [] : byTodo.get(record.todoId ?? "") ?? [];
+    // Evidence can be attached before completion or later from the Todo drawer.
+    // Both relationships belong to the same completed work item.
+    const relations = [...(record.activityId ? byActivity.get(record.activityId) ?? [] : []), ...(record.todoId && record.isCompletion ? byTodo.get(record.todoId) ?? [] : [])];
     const seen = new Set<string>(); const items: ExportEvidenceSummaryItem[] = [];
     for (const rel of relations) {
       const item = byId.get(rel.evidence_id); if (!item || seen.has(item.id)) continue; seen.add(item.id);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { activeApiUser, jsonError, sameOrigin } from "@/features/evidence/server/http";
 import { MAX_PHOTO_BYTES, extensionForMime, safeOriginalFilename } from "@/features/evidence/domain/photo";
 import { localDateAt } from "@/features/activity/domain/date";
+import { photoName } from "@/features/evidence/domain/photo-name";
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserMonthFolder } from "@/lib/google-drive/metadata";
 import { initiatePhotoUpload, isDriveUploadSessionUrl, probePhotoUpload } from "@/lib/google-drive/upload";
@@ -86,11 +87,11 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const evidenceId = previous?.id ?? crypto.randomUUID();
-  const storedFilename = `${crypto.randomUUID()}.${extensionForMime(input.mimeType)}`;
+  const storedFilename = photoName(localDateAt(new Date(), user.timezone), evidenceId, extensionForMime(input.mimeType));
   if (!previous) {
     const { error } = await supabase.from("evidences").insert({
       id: evidenceId, user_id: user.userId, type: "PHOTO", status: "UPLOADING",
-      title: safeOriginalFilename(input.originalFilename).slice(0, 160) || "Foto activity",
+      title: storedFilename,
       upload_id: input.uploadId,
     });
     if (error) return jsonError("Terlalu banyak upload aktif atau penyimpanan gagal.", 429);

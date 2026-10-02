@@ -12,7 +12,7 @@ export async function listActivities(filters: ActivityFilters) {
   const supabase = await createClient();
   const page = Math.max(1, Math.min(10000, Math.floor(filters.page || 1)));
   const pageSize = 20;
-  let query = supabase.from("activities").select("*", { count: "exact" })
+  let query = supabase.from("canonical_activities").select("*", { count: "exact" })
     .eq("user_id", user.userId).is("deleted_at", null)
     .order("activity_date", { ascending: false })
     .order("created_at", { ascending: false }).order("id", { ascending: false });

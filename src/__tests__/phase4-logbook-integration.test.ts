@@ -114,7 +114,7 @@ vi.mock("@/lib/supabase/server", () => ({
           return { data, error: null, count: data.length };
         }
 
-        if (table === "activities" || table === "logbook_activities") {
+        if (table === "activities" || table === "canonical_activities" || table === "logbook_activities") {
           let list = fakeDb.activities.map(item => ({ work_category: "INTERNSHIP", ...item }));
 
           for (const f of filters) {
@@ -144,7 +144,7 @@ vi.mock("@/lib/supabase/server", () => ({
           return { data: isHead ? null : list, error: null, count };
         }
 
-        if (table === "activity_evidences") {
+        if (table === "canonical_activity_evidences") {
           let list = [...fakeDb.activityEvidences];
           for (const f of filters) {
             if (f.type === "eq") list = list.filter((item) => item[f.field] === f.value);

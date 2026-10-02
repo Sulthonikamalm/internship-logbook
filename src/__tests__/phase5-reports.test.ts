@@ -16,6 +16,7 @@ import { generateWorkbook } from "@/features/reports/server/generate-workbook";
 import { getExportData } from "@/features/reports/server/get-export-data";
 import { POST } from "@/app/api/reports/export-excel/route";
 import { NextRequest } from "next/server";
+import { missingReportEvidence } from "@/features/reports/domain/evidence-gate";
 
 // Test Users
 const userA = {
@@ -45,6 +46,7 @@ const mockDb = {
   activities: [] as any[],
   evidences: [] as any[],
   activityEvidences: [] as any[],
+  todoEvidences: [] as any[],
   auditLogs: [] as any[],
 };
 
@@ -109,8 +111,10 @@ vi.mock("@/lib/supabase/server", () => ({
             list = mockDb.activities.map(item => ({ work_category: "INTERNSHIP", status: "AVAILABLE", todo_id: null, completion_transition_id: null, ...item }));
           } else if (table === "evidences") {
             list = [...mockDb.evidences];
-          } else if (table === "activity_evidences") {
+          } else if (table === "canonical_activity_evidences") {
             list = [...mockDb.activityEvidences];
+          } else if (table === "todo_evidences") {
+            list = [...mockDb.todoEvidences];
           }
 
           for (const f of filters) {
@@ -150,6 +154,7 @@ describe("Phase 5: Excel Export & Reports", () => {
     mockDb.activities = [];
     mockDb.evidences = [];
     mockDb.activityEvidences = [];
+    mockDb.todoEvidences = [];
     mockDb.auditLogs = [];
   });
 
@@ -485,6 +490,14 @@ describe("Phase 5: Excel Export & Reports", () => {
         const data = await getExportData({ from: "2026-09-01", to: "2026-09-30", category, includeEvidence: true, evidenceLinkMode: "APP_PRIVATE" });
         expect(data.activities.map(row => row.id)).toEqual([category]);
       }
+    });
+    it("accepts a photo attached to the Todo after its Activity was recorded", async () => {
+      mockDb.activities = [{ id: "completed-work", user_id: userA.userId, todo_id: "todo-1", completion_transition_id: "completion-1", activity_date: "2026-09-10", title: "Selesai desain", description: null, start_time: null, end_time: null, deleted_at: null, created_at: "2026-09-10T09:00:00Z" }];
+      mockDb.todoEvidences = [{ todo_id: "todo-1", evidence_id: "photo-1", attached_by: userA.userId }];
+      mockDb.evidences = [{ id: "photo-1", user_id: userA.userId, deleted_at: null, type: "PHOTO", title: "Bukti", status: "AVAILABLE", photo_evidences: { evidence_id: "photo-1" } }];
+      const result = await getExportData({ from: "2026-09-01", to: "2026-09-30", includeEvidence: true, category: "INTERNSHIP", evidenceLinkMode: "APP_PRIVATE" });
+      expect(result.activities[0]?.evidences?.map(item => item.id)).toEqual(["photo-1"]);
+      expect(missingReportEvidence(result.activities, "INTERNSHIP")).toHaveLength(0);
     });
     it("sorts activities in chronological ascending (ASC) order", async () => {
       mockDb.activities = [
