@@ -27,7 +27,7 @@ export function QuickPhotoActivity({ onBusyChange, initialCategory = "INTERNSHIP
       const result = await createPhotoOnlyActivity(evidenceId, key.current, category);
       if (!result.ok) { setMessage(result.message); return; }
       toast.success("Draft Activity tersimpan");
-      router.push(`/activities/${result.id}`); router.refresh();
+      router.push(`/activities/${result.id}`);
     } catch { setMessage("Respons tidak diterima. Coba lagi; foto tetap di Evidence Library."); }
     finally { lock.current = false; setPending(false); onBusyChange?.(false); }
   }

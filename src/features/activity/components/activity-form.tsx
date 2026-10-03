@@ -176,7 +176,6 @@ export function ActivityForm({
       toast.success("Activity tersimpan");
       const destination = returnTo ? safeRedirect(returnTo) : `/activities/${result.activity.id}`;
       router.push(destination);
-      router.refresh();
     } catch {
       setMessage("Respons belum diterima. Coba lagi; kunci penyimpanan yang sama akan dipakai.");
     } finally {

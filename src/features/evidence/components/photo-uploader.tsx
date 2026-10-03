@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,21 @@ import { MAX_PHOTO_BYTES } from "../domain/photo-signature";
 type Stage = "IDLE" | "QUEUED" | "VALIDATING" | "UPLOADING" | "FINALIZING" | "SUCCESS" | "FAILED";
 type Props = { onUploaded?: (id: string) => void | Promise<void>; onBusyChange?: (busy: boolean) => void; compact?: boolean };
 class SessionExpiredError extends Error {}
+const supportedPhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function pastedPhoto(event: ClipboardEvent): File | null {
+  const item = Array.from(event.clipboardData?.items ?? []).find((entry) =>
+    entry.kind === "file" && entry.type.startsWith("image/"));
+  const file = item?.getAsFile();
+  if (!file) return null;
+  if (!supportedPhotoTypes.has(file.type)) return file;
+
+  const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
+  return new File([file], `screenshot-${Date.now()}.${extension}`, {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
 
 async function serverJson(url: string, body: object) {
   const response = await fetch(url, { method: "POST", credentials: "same-origin",
@@ -61,13 +76,36 @@ export function PhotoUploader({ onUploaded, onBusyChange, compact = false }: Pro
   const busy = ["VALIDATING", "UPLOADING", "FINALIZING"].includes(stage);
   useEffect(() => () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current); }, []);
 
-  function select(selected: File | null) {
+  const select = useCallback((selected: File | null) => {
     if (locked.current) return;
     if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     previewRef.current = selected ? URL.createObjectURL(selected) : ""; setPreview(previewRef.current);
     setFile(selected); setStage(selected ? "QUEUED" : "IDLE"); setMessage(""); setProgress(0);
     setDuplicateId(null); resetSession.current = false; uploadId.current = crypto.randomUUID();
-  }
+  }, []);
+  useEffect(() => {
+    function handlePaste(event: ClipboardEvent) {
+      if (locked.current) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && target.isContentEditable) return;
+      if (target instanceof HTMLInputElement && target.type !== "file") return;
+      if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+
+      const file = pastedPhoto(event);
+      if (!file) return;
+      event.preventDefault();
+      if (!supportedPhotoTypes.has(file.type)) {
+        select(null);
+        setMessage("Gunakan foto JPEG, PNG, atau WebP.");
+        setStage("FAILED");
+        return;
+      }
+      select(file);
+    }
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [select]);
   function lock(value: boolean) { locked.current = value; onBusyChange?.(value); }
   async function compress() {
     if (!file || locked.current) return; lock(true); setStage("VALIDATING"); setMessage("");
@@ -118,7 +156,7 @@ export function PhotoUploader({ onUploaded, onBusyChange, compact = false }: Pro
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={preview} alt="Pratinjau foto yang dipilih" className="h-full w-full object-contain" />
       </div>}
-      <label htmlFor={inputId} className="mb-2 flex items-center gap-2 text-sm font-medium"><ImagePlus size={18} /> Pilih foto</label>
+      <label htmlFor={inputId} className="mb-2 flex items-center gap-2 text-sm font-medium"><ImagePlus size={18} /> Pilih foto atau tempel gambar</label>
       <input id={inputId} disabled={busy} type="file" accept="image/jpeg,image/png,image/webp"
         onChange={(event) => select(event.target.files?.[0] ?? null)} className="block w-full min-w-0 text-sm file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-secondary file:px-3" />
       {compact && <label className={`mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${busy ? "pointer-events-none opacity-50" : ""}`}>
@@ -126,6 +164,7 @@ export function PhotoUploader({ onUploaded, onBusyChange, compact = false }: Pro
           onChange={(event) => select(event.target.files?.[0] ?? null)} className="sr-only" />
       </label>}
       <p className="mt-2 truncate text-xs text-muted-foreground">{file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB` : "JPG, PNG, WebP · Maks. 15 MB · Tersimpan privat"}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Tempel tangkapan layar dengan Ctrl+V atau ⌘V.</p>
     </div>
     {file && file.size > MAX_PHOTO_BYTES && <Feedback>Foto melebihi 15 MB. <Button variant="outline" onClick={compress} disabled={busy}>Kompres foto</Button></Feedback>}
     {duplicateId && <div className="space-y-3 rounded-xl bg-muted p-4"><p className="text-sm">Foto ini sudah ada.</p><div className="flex flex-wrap gap-2">
