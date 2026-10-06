@@ -49,6 +49,8 @@ Activity dapat dibuat tanpa Todo. Todo **Magang** dan **Tugas Akhir** memerlukan
 | :---: | :---: |
 | <img src="docs/qa/workspace-v2/home-mobile.png" alt="Beranda InternFlow di ponsel" width="260" /> | <img src="docs/qa/workspace-v2/kanban-desktop.png" alt="Kanban InternFlow di desktop" width="620" /> |
 
+Indeks screenshot, termasuk laporan dan pembaca foto, tersedia di [dokumentasi QA workspace v2](docs/qa/workspace-v2/README.md).
+
 ## 🚀 Menjalankan di lokal
 
 Gunakan Node.js **22.22.2+**, **24.15+**, atau **26+**. Setelah repository di-clone:
