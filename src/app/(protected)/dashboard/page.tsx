@@ -8,6 +8,7 @@ import { LocalDraftShortcut } from "@/features/home/components/local-draft-short
 import { getServerEnv } from "@/lib/env/server";
 import { parseWorkCategory } from "@/features/work/domain/category";
 import { CategoryTabs } from "@/features/work/components/category-tabs";
+import { AttendanceCard } from "@/features/attendance/components/attendance-card";
 
 export const metadata: Metadata = { title: "Home — InternFlow" };
 const actions = [
@@ -35,6 +36,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return <div className="space-y-7 lg:space-y-9">
     <header className="flex items-end justify-between gap-4"><div className="min-w-0"><p className="mb-2 text-xs font-medium text-muted-foreground">{date}</p><h1 className="break-words text-[1.8rem] font-semibold leading-tight sm:text-3xl">Halo{name ? `, ${name}` : ""}.</h1><p className="mt-2 text-sm text-muted-foreground">Apa yang kamu kerjakan hari ini?</p></div><Link href={`/activities/new?category=${category}`} className="hidden items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-medium text-primary shadow-sm sm:flex">Activity baru<Plus size={18} /></Link></header>
     <CategoryTabs value={category} href="/dashboard" />
+    <AttendanceCard key={`${data.attendance?.id ?? "none"}:${data.attendance?.ended_at ?? "open"}:${data.attendance?.auto_closed ?? false}`} initialSession={data.attendance} loadError={data.attendanceError} />
     <section aria-label="Aksi cepat" className="glass-panel rounded-3xl p-4 shadow-[var(--shadow-glass)] sm:p-6">
       <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-semibold">Aksi cepat</h2></div>
       <div className="grid grid-cols-4 gap-2 sm:gap-3">

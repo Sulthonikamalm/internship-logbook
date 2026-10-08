@@ -36,6 +36,7 @@ Activity dapat dibuat tanpa Todo. Todo **Magang** dan **Tugas Akhir** memerlukan
 | --- | --- |
 | 🏠 **Beranda** | Akses cepat ke pencatatan, upload, Todo, laporan, dan area lain dari ponsel. |
 | ✅ **Todo** | Pindahkan pekerjaan di Kanban, gunakan tampilan List pada layar kecil, dan pantau progres per kategori. |
+| ⏱️ **Absen** | Mulai dan akhiri kerja, lalu tinjau total durasi per hari. |
 | ✍️ **Activity** | Catat pekerjaan langsung atau dari Todo yang selesai, lalu tambahkan bukti sesuai kebutuhan. |
 | 📎 **Evidence** | Unggah foto, simpan tautan, dan pilih commit GitHub secara eksplisit sebagai bukti. |
 | 📅 **Kalender & Logbook** | Tinjau pekerjaan yang selesai dan susun catatan harian. |
@@ -72,6 +73,8 @@ Buka **http://localhost:3000**. Pada macOS/Linux, ganti `Copy-Item` dengan `cp`.
 | `GITHUB_*` | OAuth dan sinkronisasi commit; opsional. |
 
 > **Rahasia tetap di server.** Jangan commit `.env.local`, menaruh credential di variabel `NEXT_PUBLIC_*`, atau membagikannya melalui issue dan screenshot.
+
+Sebelum menerapkan migrasi absensi ke Supabase, aktifkan extension **pg_cron** pada proyek. Migrasi mendaftarkan job penutupan sesi yang berjalan setiap menit dan menyimpan jam selesai pada tengah malam lokal pengguna. Lihat [panduan Supabase Cron](https://supabase.com/docs/guides/cron/install).
 
 <details>
 <summary><strong>📷 Menyiapkan Google Drive</strong></summary>
