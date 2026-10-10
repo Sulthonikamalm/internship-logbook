@@ -9,6 +9,7 @@ vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ from: (ta
   return query;
 } }) }));
 import { initiatePhotoUpload, probePhotoUpload } from "@/lib/google-drive/upload";
+import { DriveError } from "@/lib/google-drive/errors";
 import { POST } from "@/app/api/evidence/photos/start/route";
 beforeEach(() => { vi.clearAllMocks(); });
 describe("Drive browser upload recovery", () => {
@@ -27,6 +28,15 @@ describe("Drive browser upload recovery", () => {
     fake.status.mockResolvedValueOnce(new Response(null, { status: 308 })).mockResolvedValueOnce(new Response(null, { status: 404 }));
     await expect(probePhotoUpload(sessionUrl, 100)).resolves.toEqual({ kind: "ACTIVE" });
     await expect(probePhotoUpload(sessionUrl, 100)).resolves.toEqual({ kind: "EXPIRED" });
+  });
+  it("preserves the expired permission diagnosis when resuming an upload", async () => {
+    fake.status.mockRejectedValue(new DriveError("AUTH", 400, "invalid_grant"));
+    const result = await POST(new Request("http://localhost:3000/api/evidence/photos/start", { method: "POST",
+      headers: { origin: "http://localhost:3000", "content-type": "application/json" },
+      body: JSON.stringify({ uploadId: "00000000-0000-4000-8000-0000000000c3", size: 100, mimeType: "image/png", originalFilename: "qa.png", checksum: "a".repeat(64) }) }));
+    expect(result.status).toBe(503);
+    expect((await result.json()).message).toContain("kedaluwarsa atau dicabut");
+    expect(fake.drive).not.toHaveBeenCalled();
   });
   it("rejects arbitrary upload endpoints before issuing a server request", async () => {
     await expect(probePhotoUpload("https://attacker.invalid/upload", 100)).rejects.toThrow();

@@ -89,6 +89,14 @@ describe("photo finalization across Drive and database", () => {
     expect(fake.deleteDriveFile).toHaveBeenCalledWith(driveFileId);
     expect(fake.updates).toContainEqual({ status: "FAILED" });
   });
+  it("keeps a pending upload recoverable when Drive permission expires during finalization", async () => {
+    fake.getDriveMetadata.mockRejectedValue(new DriveError("AUTH", 400, "invalid_grant"));
+    const response = await POST(request());
+    expect(response.status).toBe(503);
+    expect((await response.json()).message).toContain("kedaluwarsa atau dicabut");
+    expect(fake.deleteDriveFile).not.toHaveBeenCalled();
+    expect(fake.updates).toEqual([]);
+  });
   it("records an orphan when cleanup also fails", async () => {
     fake.rpcError = { code: "23514" }; fake.deleteFails = true;
     const response = await POST(request());

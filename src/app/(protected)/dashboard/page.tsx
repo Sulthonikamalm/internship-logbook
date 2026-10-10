@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
     </div>
-    <section aria-label="Status integrasi" className="flex flex-col gap-2 rounded-2xl bg-white/50 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Drive · {driveReady ? "Siap upload" : "Perlu konfigurasi"}</p><Link href="/integrations" className="flex min-h-11 items-center gap-2 text-xs font-medium"><GitBranch size={16} />{githubStatus}<ChevronRight size={15} /></Link></section>
+    <section aria-label="Status integrasi" className="flex flex-col gap-2 rounded-2xl bg-white/50 p-4 sm:flex-row sm:items-center sm:justify-between"><Link href="/integrations" className="flex min-h-11 items-center text-xs text-muted-foreground">Drive · {driveReady ? "Terkonfigurasi · cek koneksi" : "Perlu konfigurasi"}</Link><Link href="/integrations" className="flex min-h-11 items-center gap-2 text-xs font-medium"><GitBranch size={16} />{githubStatus}<ChevronRight size={15} /></Link></section>
     {data.user.isSuperAdmin && <Link href="/admin/users" className="surface flex min-h-16 items-center gap-3 p-4 text-sm font-medium"><Users size={20} className="text-primary" />Kelola pengguna<ChevronRight size={17} className="ml-auto" /></Link>}
   </div>;
 }

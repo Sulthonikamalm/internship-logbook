@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDriveMetadata } from "@/lib/google-drive/metadata";
 import { downloadDriveBytes } from "@/lib/google-drive/download";
 import { deleteDriveFile } from "@/lib/google-drive/delete";
-import { DriveError, driveMessage } from "@/lib/google-drive/errors";
+import { DriveError, driveMessage, logDriveError } from "@/lib/google-drive/errors";
 
 export const runtime = "nodejs";
 
@@ -98,12 +98,13 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true, evidenceId: evidence.id },
       { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    logDriveError("photo.finalize", error);
     if (error instanceof DriveError && error.code === "NOT_FOUND") {
       await supabase.from("evidences").update({ status: "FAILED" })
         .eq("id", evidence.id).eq("user_id", user.userId);
       return jsonError("File upload tidak ditemukan di Drive. Pilih ulang foto.", 404);
     }
-    const message = error instanceof DriveError ? driveMessage(error.code) : "Finalisasi foto gagal. Coba lagi.";
+    const message = error instanceof DriveError ? driveMessage(error.code, error.reason) : "Finalisasi foto gagal. Coba lagi.";
     return jsonError(message, 503, "DRIVE_UNAVAILABLE");
   }
 }

@@ -6,7 +6,7 @@ import { photoName } from "@/features/evidence/domain/photo-name";
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserMonthFolder } from "@/lib/google-drive/metadata";
 import { initiatePhotoUpload, isDriveUploadSessionUrl, probePhotoUpload } from "@/lib/google-drive/upload";
-import { DriveError, driveMessage } from "@/lib/google-drive/errors";
+import { DriveError, driveMessage, logDriveError } from "@/lib/google-drive/errors";
 
 export const runtime = "nodejs";
 
@@ -60,8 +60,10 @@ export async function POST(request: Request): Promise<Response> {
           if (state.kind === "ACTIVE") return Response.json({ ok: true, kind: "UPLOAD",
             evidenceId: previous.id, sessionUrl: saved.session_url },
             { headers: { "Cache-Control": "no-store" } });
-        } catch {
-          return jsonError("Status upload belum dapat diperiksa. Coba lagi.", 503);
+        } catch (error) {
+          logDriveError("photo.resume", error);
+          return jsonError(error instanceof DriveError ? driveMessage(error.code, error.reason)
+            : "Status upload belum dapat diperiksa. Coba lagi.", 503, "DRIVE_UNAVAILABLE");
         }
     }
   }
@@ -135,9 +137,10 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ ok: true, kind: "UPLOAD", evidenceId, sessionUrl },
       { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    logDriveError("photo.start", error);
     await supabase.from("evidences").update({ status: "FAILED" })
       .eq("id", evidenceId).eq("user_id", user.userId);
-    const message = error instanceof DriveError ? driveMessage(error.code) : "Sesi upload gagal dibuat. Coba lagi.";
+    const message = error instanceof DriveError ? driveMessage(error.code, error.reason) : "Sesi upload gagal dibuat. Coba lagi.";
     return jsonError(message, 503, "DRIVE_UNAVAILABLE");
   }
 }

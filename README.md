@@ -86,6 +86,10 @@ Sebelum menerapkan migrasi absensi ke Supabase, aktifkan extension **pg_cron** p
 
 Aplikasi menggunakan OAuth akun penyimpanan pada server; koneksi Google Drive milik alat pengembangan tidak otomatis menjadi credential aplikasi. Scope `drive` memberi akses luas, jadi gunakan akun penyimpanan khusus bila memungkinkan. Untuk consent screen **External/Testing**, refresh token dapat kedaluwarsa setelah tujuh hari. Lihat [panduan OAuth Google](https://developers.google.com/identity/protocols/oauth2) dan [scope Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
 
+Jika upload mendadak gagal dengan izin kedaluwarsa, jalankan `npm run google:check`. Pemeriksaan membaca konfigurasi server dan memverifikasi token serta folder tanpa mencetak rahasia. Respons `invalid_grant` berarti token lama tidak dapat digunakan lagi. Di Google Cloud → **Google Auth Platform → Audience**, periksa publishing status; untuk aplikasi yang dipakai terus-menerus, ubah **Testing** ke **In production**, lalu jalankan `npm run google:setup` untuk memberi persetujuan dan menerbitkan token baru. Jika Google meminta verifikasi aplikasi, ikuti persyaratan yang ditampilkan di console.
+
+Helper OAuth menyimpan token hanya ke `.env.local`. Untuk situs Vercel, perbarui `GOOGLE_REFRESH_TOKEN` pada proyek dan environment **Production** yang melayani situs, lalu redeploy; perubahan lokal atau push Git tidak memperbarui secret produksi. Jangan mengirim token melalui chat. Halaman Integrasi memeriksa akses Drive secara langsung, dan log server mencatat kode error yang aman seperti `[drive.oauth] code=AUTH status=400 reason=invalid_grant`.
+
 </details>
 
 <details>
