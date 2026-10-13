@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { AppToaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/theme/theme-provider";
+import { ThemeScript } from "@/components/theme/theme-script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#2563EB",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f7fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#090d16" },
+  ],
   viewportFit: "cover",
 };
 
@@ -26,10 +31,16 @@ export default function RootLayout({
     <html
       lang="id"
       className="h-full antialiased"
+      suppressHydrationWarning
     >
+      <head>
+        <ThemeScript />
+      </head>
       <body className="min-h-full flex flex-col font-sans bg-background text-foreground">
-        {children}
-        <AppToaster />
+        <ThemeProvider>
+          {children}
+          <AppToaster />
+        </ThemeProvider>
       </body>
     </html>
   );

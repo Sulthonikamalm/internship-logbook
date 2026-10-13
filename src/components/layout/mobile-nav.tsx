@@ -7,12 +7,17 @@ import { Ellipsis, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { LogoutButton } from "@/features/auth/components/logout-button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Brand } from "./brand";
 import { getNavigationItems, isCurrentPath } from "./navigation";
 
 export function MobileHeader() {
   return <header className="glass-panel fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b px-4 md:hidden">
-    <Brand /><Link href="/settings" aria-label="Settings" className="pressable flex size-11 items-center justify-center rounded-full text-muted-foreground"><Settings size={21} /></Link>
+    <Brand />
+    <div className="flex items-center gap-1.5">
+      <ThemeToggle />
+      <Link href="/settings" aria-label="Settings" className="pressable flex size-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"><Settings size={20} /></Link>
+    </div>
   </header>;
 }
 
@@ -35,7 +40,10 @@ export function MobileBottomNav({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
       <div className="grid grid-cols-2 gap-3">
         {navigationItems.filter(item => item.group === "tools").map(item => <Link href={item.href} key={item.href} onClick={() => setMoreOpen(false)} className="pressable surface flex min-h-24 flex-col justify-center gap-3 p-4 text-sm font-medium"><item.icon className="text-primary" size={23} aria-hidden="true" />{item.name}</Link>)}
       </div>
-      <div className="mt-5 border-t border-border pt-3"><LogoutButton /></div>
+      <div className="mt-5 space-y-2 border-t border-border pt-3">
+        <ThemeToggle variant="menu-item" />
+        <LogoutButton />
+      </div>
     </Modal>
   </>;
 }

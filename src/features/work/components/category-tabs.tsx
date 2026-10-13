@@ -8,7 +8,7 @@ export function CategoryTabs({ value, href, params = {}, all = false }: { value:
     {choices.map(category => {
       const query = new URLSearchParams({ ...params, category });
       return <Link key={category} href={`${href}?${query}`} aria-current={value === category ? "page" : undefined}
-        className={cn("flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-xl px-3 text-center text-sm font-medium transition-colors", value === category ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-white/70")}>{category === "ALL" ? "Semua" : categoryLabels[category]}</Link>;
+        className={cn("flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-xl px-3 text-center text-sm font-medium transition-colors", value === category ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>{category === "ALL" ? "Semua" : categoryLabels[category]}</Link>;
     })}
   </nav>;
 }

@@ -61,6 +61,29 @@
     --duration-panel: 220ms;
     color-scheme: light;
   }
+  .dark {
+    --background: #090d16;
+    --foreground: #f1f5f9;
+    --card: #111827;
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --primary-active: #2563eb;
+    --secondary: #1a2438;
+    --muted: #151e30;
+    --muted-foreground: #94a3b8;
+    --accent: #1e293b;
+    --border: #22314e;
+    --input: #1e293b;
+    --ring: #3b82f6;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --destructive: #ef4444;
+    --glass: rgba(17, 24, 39, 0.82);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --shadow-surface: 0 2px 10px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 20px 50px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
   * { border-color: var(--border); }
   body { background: var(--background); color: var(--foreground); font-family: var(--font-sans); min-height: 100dvh; }
   h1, h2, h3 { text-wrap: balance; }
@@ -157,3 +180,61 @@
   .glass-panel { background: var(--card); backdrop-filter: none; border-color: var(--border); }
   .dialog-backdrop { backdrop-filter: none; }
 }
+
+/* Circular Wave View Transition Animation */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* Dark mode specific component surfaces */
+.dark .app-canvas {
+  background: radial-gradient(ellipse at 15% 0%, rgba(37, 99, 235, 0.12) 0%, transparent 45%), var(--background);
+}
+.dark .auth-canvas {
+  background: radial-gradient(ellipse at 10% 15%, rgba(37, 99, 235, 0.15) 0%, transparent 52%), radial-gradient(ellipse at 90% 100%, rgba(59, 130, 246, 0.08) 0%, transparent 50%), #070a12;
+}
+.dark .kanban-column { background: #111726; }
+.dark .kanban-column[data-stage="TODO"] { background: #121c2e; }
+.dark .kanban-column[data-stage="IN_PROGRESS"] { background: #221c13; }
+.dark .kanban-column[data-stage="REVIEW"] { background: #1c152a; }
+.dark .kanban-column[data-stage="DONE"] { background: #0e2017; }
+.dark .kanban-task {
+  background: #151e30;
+  border-color: #243450;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.dark .kanban-task[data-overdue="true"] {
+  background: #271415;
+  border-color: #6d2424;
+  box-shadow: inset 3px 0 0 #ef4444, 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.dark .kanban-task-dragging {
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  border-color: #3b82f6;
+}
+.dark .category-chip {
+  color: #93c5fd;
+  background: #1e293b;
+}
+.dark .category-chip[data-category="THESIS"] {
+  color: #fde047;
+  background: #2f2312;
+}
+.dark .category-chip[data-category="PERSONAL"] {
+  color: #d8b4fe;
+  background: #281a3d;
+}
+.dark .state-feedback[data-tone="error"] { color: #f87171; background: rgba(239, 68, 68, 0.12); }
+.dark .state-feedback[data-tone="success"] { color: #4ade80; background: rgba(34, 197, 94, 0.12); }
+.dark .state-feedback[data-tone="info"] { color: #60a5fa; background: var(--secondary); }
+.dark .state-feedback[data-tone="warning"] { color: #fbbf24; background: rgba(245, 158, 11, 0.12); }
+.dark .dialog-backdrop { background: rgba(0, 0, 0, 0.65); }
+

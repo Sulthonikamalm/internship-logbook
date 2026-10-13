@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/features/auth/components/logout-button";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Brand } from "./brand";
 import { getNavigationItems, isCurrentPath } from "./navigation";
 
@@ -22,15 +23,20 @@ export function Sidebar({ displayName, isSuperAdmin }: { displayName?: string; i
         <p className="eyebrow px-3 pb-2">{group === "work" ? "Workspace" : "Kelola"}</p>
         {navigationItems.filter(item => item.group === group).map(item => {
           const active = isCurrentPath(pathname, item.href);
-          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/70 hover:text-foreground")}>
+          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors", active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
             <item.icon size={19} strokeWidth={1.8} aria-hidden="true" />{item.name}
           </Link>;
         })}
       </div>)}
     </nav>
-    <div className="mx-5 border-t border-border py-5">
+    <div className="mx-5 border-t border-border py-4">
       {displayName && <p className="mb-2 truncate px-2 text-sm font-medium">{displayName}</p>}
-      <LogoutButton />
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <LogoutButton />
+        </div>
+        <ThemeToggle />
+      </div>
     </div>
   </aside>;
 }
