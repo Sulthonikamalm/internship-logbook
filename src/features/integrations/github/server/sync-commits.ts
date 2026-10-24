@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptGitHubToken } from "./token-crypto";
+import { normalizeGitHubRepoTarget } from "../domain/repository";
 
 export interface SyncCommitsResult {
   ok: boolean;
@@ -19,8 +20,8 @@ type CacheCommit = { repository_id: string; repository_name: string; sha: string
 
 export async function syncGitHubCommits(targetRepo?: string): Promise<SyncCommitsResult> {
   const user = await requireActiveUser();
-  const repoFilter = targetRepo?.trim();
-  if (repoFilter && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repoFilter)) return { ok: false, code: "REPO_UNAVAILABLE", message: "Gunakan nama repo dalam format owner/repository." };
+  const repoFilter = normalizeGitHubRepoTarget(targetRepo);
+  if (repoFilter === null) return { ok: false, code: "REPO_UNAVAILABLE", message: "Masukkan owner/repository atau tautan repo GitHub, misalnya COE-INTEREST/WEBSITECOE_INTEREST." };
   const admin = createAdminClient();
   const nonce = randomUUID();
   const { data: lease, error: leaseError } = await admin.rpc("begin_github_sync", { p_user_id: user.userId, p_nonce: nonce });
@@ -64,25 +65,46 @@ export async function syncGitHubCommits(targetRepo?: string): Promise<SyncCommit
       return { ok: false, code: "REPO_UNAVAILABLE", message: "Repo tidak tersedia atau akun ini tidak memiliki akses." };
     };
     const response = await get(repoFilter ? `/repos/${repoFilter}` : "/user/repos?sort=updated&per_page=100&type=all");
-    if (!response.ok) { result = await failure(response); if (repoFilter && result.code === "REPO_UNAVAILABLE") unavailable.push(repoFilter); return await finish(); }
+    if (!response.ok) {
+      result = await failure(response);
+      if (repoFilter && result.code === "REPO_UNAVAILABLE") {
+        unavailable.push(repoFilter);
+        result = { ...result, message: `Tidak dapat membaca ${repoFilter}. Pastikan akun @${connection.github_username} punya akses dan izin repo privat/organisasi sudah diberikan.` };
+      }
+      return await finish();
+    }
     const raw = await response.json();
     const repos = repoFilter ? [repositorySchema.parse(raw)] : z.array(repositorySchema).parse(raw).slice(0, 10);
     let partial = false;
     for (const repo of repos) {
-      const response = await get(`/repos/${repo.full_name}/commits?author=${encodeURIComponent(connection.github_username)}&per_page=100`);
-      if (response.status === 409) continue; // Empty repositories contain no commits.
-      if (!response.ok) {
-        result = await failure(response);
-        if (result.code === "RATE_LIMITED" || result.code === "REAUTH_REQUIRED") return await finish();
-        unavailable.push(repo.full_name); partial = true; continue;
-      }
-      const entries = z.array(commitSchema).parse(await response.json());
-      for (const entry of entries) {
-        if (String(entry.author?.id) !== connection.github_user_id) continue;
-        commits.push({ repository_id: String(repo.id), repository_name: repo.full_name, sha: entry.sha, message: entry.commit.message.slice(0, 2000), commit_url: `https://github.com/${repo.full_name}/commit/${entry.sha}`, branch: repo.default_branch ?? null, author_date: entry.commit.author?.date ?? entry.commit.committer?.date ?? null });
+      for (let page = 1; ; page += 1) {
+        const params = new URLSearchParams({ author: connection.github_username, per_page: "100", page: String(page) });
+        const response = await get(`/repos/${repo.full_name}/commits?${params}`);
+        if (response.status === 409) break; // Empty repositories contain no commits.
+        if (!response.ok) {
+          result = await failure(response);
+          if (result.code === "RATE_LIMITED" || result.code === "REAUTH_REQUIRED") return await finish();
+          if (repoFilter) {
+            unavailable.push(repo.full_name);
+            result = { ...result, message: `Tidak dapat membaca commit di ${repo.full_name}. Pastikan akun @${connection.github_username} punya akses dan izin repo privat/organisasi sudah diberikan.` };
+            return await finish();
+          }
+          unavailable.push(repo.full_name); partial = true; break;
+        }
+        const entries = z.array(commitSchema).parse(await response.json());
+        for (const entry of entries) {
+          if (String(entry.author?.id) !== connection.github_user_id) continue;
+          commits.push({ repository_id: String(repo.id), repository_name: repo.full_name, sha: entry.sha, message: entry.commit.message.slice(0, 2000), commit_url: `https://github.com/${repo.full_name}/commit/${entry.sha}`, branch: repo.default_branch ?? null, author_date: entry.commit.author?.date ?? entry.commit.committer?.date ?? null });
+        }
+        // Targeted repository sync follows GitHub pagination; automatic sync keeps its one-page-per-repo limit.
+        if (!repoFilter || entries.length < 100) break;
       }
     }
-    result = partial ? { ok: false, code: "PARTIAL", message: `${commits.length} commit dimuat. Sebagian repo tidak dapat diakses.` } : { ok: true, code: "SUCCESS", message: `${commits.length} commit disinkronkan${repoFilter ? "" : " dari hingga 10 repo terbaru"}.` };
+    result = partial
+      ? { ok: false, code: "PARTIAL", message: `${commits.length} commit dimuat. Sebagian repo tidak dapat diakses.` }
+      : commits.length === 0 && repoFilter
+        ? { ok: true, code: "SUCCESS", message: `Tidak ada commit oleh @${connection.github_username} yang ditemukan di ${repoFilter}. Pastikan author commit terhubung ke akun GitHub ini.` }
+        : { ok: true, code: "SUCCESS", message: `${commits.length} commit disinkronkan${repoFilter ? "" : " dari hingga 10 repo terbaru"}.` };
   } catch { /* Provider or network failures never expose tokens or raw exceptions. */ }
   return await finish();
 }

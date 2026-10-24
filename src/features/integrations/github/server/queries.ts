@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { GitHubConnection, GitHubCommit, CommitFilterParams } from "../types";
 import { commitFilterSchema } from "../schemas/github.schema";
 import { utcRangeForLocalDay } from "@/features/evidence/domain/date";
+import { normalizeGitHubRepoTarget } from "../domain/repository";
 
 export async function getGitHubConnection(): Promise<GitHubConnection | null> {
   const user = await requireActiveUser();
@@ -51,7 +52,8 @@ export async function listGitHubCommits(
     .eq("user_id", user.userId);
 
   if (input.repository) {
-    query = query.eq("repository_name", input.repository);
+    const repository = normalizeGitHubRepoTarget(input.repository) ?? input.repository;
+    query = query.eq("repository_name", repository);
   }
 
   if (input.search) {
