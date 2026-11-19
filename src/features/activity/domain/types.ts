@@ -1,5 +1,5 @@
 export type ActivityStatus = "DRAFT" | "READY" | "ARCHIVED";
-export type ActivitySource = "manual" | "quick_capture" | "todo";
+export type ActivitySource = "manual" | "quick_capture" | "todo" | "codex";
 
 export type Activity = {
   id: string;

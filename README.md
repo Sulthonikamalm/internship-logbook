@@ -125,6 +125,18 @@ Foto tetap berada di Drive privat. Pemegang file Excel dapat membuka foto yang d
 - GitHub adalah integrasi pilihan; commit tidak otomatis berubah menjadi Activity.
 - Tautan foto laporan memiliki masa berlaku, dapat dicabut, dan tidak membuat folder Drive menjadi publik.
 
+## 🤖 Logbook melalui Codex
+
+Unggah hingga **100 foto per antrean**, lalu minta Codex menyusun logbook harian,
+mingguan, atau bulanan untuk repository tertentu. Codex meninjau foto yang belum
+dipakai, menggunakan screenshot versi commit atau diff sebagai cadangan, dan
+menyimpan hasil ke aplikasi serta Excel dengan thumbnail dan tautan bukti.
+
+Terapkan migrasi `20261119090000_codex_logbook.sql`, jalankan
+`npm run logbook:login`, lalu muat ulang sesi Codex untuk mengaktifkan MCP project.
+Profil screenshot aplikasi dan contoh perintah tersedia dalam
+[panduan Codex Logbook](docs/CODEX_LOGBOOK.md).
+
 ## 🧪 Pemeriksaan proyek
 
 ```powershell

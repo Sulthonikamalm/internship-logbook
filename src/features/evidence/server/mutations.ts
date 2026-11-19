@@ -9,9 +9,25 @@ import { validateEvidenceUrl } from "../domain/link";
 import { deleteDriveFile } from "@/lib/google-drive/delete";
 import { listEvidence } from "./list-evidence";
 import { workCategorySchema, type WorkCategory } from "@/features/work/domain/category";
+import { parseCaptureTime } from "../domain/capture-time";
 
 type MutationResult = { ok: true; id?: string } | { ok: false; message: string; code?: string; count?: number };
 const uuid = z.uuid();
+
+export async function updateEvidenceCaptureTime(id: string, value: string): Promise<MutationResult> {
+  const user = await requireActiveUser();
+  if (!uuid.safeParse(id).success || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return { ok: false, message: "Waktu pengambilan tidak valid." };
+  const capturedAt = parseCaptureTime(`${value}:00`, null, user.timezone);
+  if (!capturedAt) return { ok: false, message: "Waktu pengambilan tidak valid." };
+  const db = await createClient();
+  const original = await db.from("evidences").select("metadata").eq("id", id).eq("user_id", user.userId).eq("type", "PHOTO").is("deleted_at", null).maybeSingle();
+  if (original.error || !original.data) return { ok: false, message: "Foto tidak tersedia." };
+  const result = await db.from("evidences").update({ captured_at: capturedAt, metadata: { ...original.data.metadata, capturedAtSource: "MANUAL" } })
+    .eq("id", id).eq("user_id", user.userId).is("deleted_at", null).select("id").maybeSingle();
+  if (result.error || !result.data) return { ok: false, message: "Waktu pengambilan belum tersimpan." };
+  revalidatePath("/evidence"); revalidatePath(`/evidence/${id}`);
+  return { ok: true };
+}
 
 export async function getEvidencePickerPage(page: number) {
   await requireActiveUser();
@@ -69,13 +85,14 @@ export async function detachEvidence(activityId: string, evidenceId: string): Pr
   return { ok: true };
 }
 
-export async function createPhotoOnlyActivity(evidenceId: string, key: string, workCategory: WorkCategory = "INTERNSHIP"): Promise<MutationResult> {
+export async function createPhotoOnlyActivity(evidenceId: string | string[], key: string, workCategory: WorkCategory = "INTERNSHIP"): Promise<MutationResult> {
   const user = await requireActiveUser();
-  if (!uuid.safeParse(evidenceId).success || !uuid.safeParse(key).success || !workCategorySchema.safeParse(workCategory).success)
+  const ids = [...new Set(Array.isArray(evidenceId) ? evidenceId : [evidenceId])];
+  if (!z.array(uuid).min(1).max(100).safeParse(ids).success || !uuid.safeParse(key).success || !workCategorySchema.safeParse(workCategory).success)
     return { ok: false, message: "Foto tidak valid." };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_photo_only_activity", {
-    p_key: key, p_evidence_id: evidenceId,
+  const { data, error } = await supabase.rpc(ids.length > 1 ? "create_photo_batch_activity" : "create_photo_only_activity", {
+    p_key: key, ...(ids.length > 1 ? { p_evidence_ids: ids } : { p_evidence_id: ids[0] }),
     p_activity_date: resolveActivityDate(undefined, user.timezone),
     p_work_category: workCategory,
   });

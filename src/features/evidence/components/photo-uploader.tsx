@@ -1,183 +1,149 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImagePlus } from "lucide-react";
+import { Camera, ImagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Feedback } from "@/components/ui/feedback";
-import { compressBrowserPhoto, prepareBrowserPhoto } from "../domain/browser-photo";
+import { compressBrowserPhoto } from "../domain/browser-photo";
+import { uploadBrowserPhoto } from "../domain/browser-upload";
 import { MAX_PHOTO_BYTES } from "../domain/photo-signature";
+import { MAX_UPLOAD_BATCH, processUploadQueue } from "../domain/upload-queue";
+import { parseCaptureTime } from "../domain/capture-time";
 
-type Stage = "IDLE" | "QUEUED" | "VALIDATING" | "UPLOADING" | "FINALIZING" | "SUCCESS" | "FAILED";
+type Stage = "QUEUED" | "VALIDATING" | "UPLOADING" | "FINALIZING" | "SUCCESS" | "FAILED" | "DUPLICATE" | "ATTACH_FAILED";
+type Item = { id: string; file: File; preview: string; stage: Stage; progress: number; message?: string;
+  evidenceId?: string; capturedAt: string };
 type Props = { onUploaded?: (id: string) => void | Promise<void>; onBusyChange?: (busy: boolean) => void; compact?: boolean };
-class SessionExpiredError extends Error {}
-const supportedPhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-
-function pastedPhoto(event: ClipboardEvent): File | null {
-  const item = Array.from(event.clipboardData?.items ?? []).find((entry) =>
-    entry.kind === "file" && entry.type.startsWith("image/"));
-  const file = item?.getAsFile();
-  if (!file) return null;
-  if (!supportedPhotoTypes.has(file.type)) return file;
-
-  const extension = file.type === "image/jpeg" ? "jpg" : file.type.split("/")[1];
-  return new File([file], `screenshot-${Date.now()}.${extension}`, {
-    type: file.type,
-    lastModified: file.lastModified,
-  });
-}
-
-async function serverJson(url: string, body: object) {
-  const response = await fetch(url, { method: "POST", credentials: "same-origin",
-    headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" });
-  if (response.status === 401) throw new Error("Sesi berakhir. Masuk kembali, lalu coba dengan foto yang sama.");
-  const payload = await response.json() as Record<string, unknown>;
-  return { response, payload };
-}
-
-async function putToDrive(sessionUrl: string, file: File, mimeType: string, onProgress: (percent: number) => void): Promise<string> {
-  const session = new URL(sessionUrl);
-  if (session.protocol !== "https:" || session.hostname !== "www.googleapis.com"
-    || session.pathname !== "/upload/drive/v3/files" || !session.searchParams.get("upload_id")) throw new Error("Sesi upload tidak valid.");
-  const status = await fetch(sessionUrl, { method: "PUT", credentials: "omit",
-    headers: { "Content-Range": `bytes */${file.size}` }, cache: "no-store" });
-  if (status.status === 404) throw new SessionExpiredError("Sesi upload berakhir. Coba lagi dengan foto yang sama.");
-  if (status.ok) { const completed = await status.json() as { id?: string }; if (completed.id) return completed.id; }
-  if (status.status !== 308) throw new Error("Status upload gagal diperiksa. Coba lagi.");
-  const received = Number(status.headers.get("Range")?.split("-")[1] ?? -1) + 1;
-  const start = Number.isFinite(received) && received >= 0 && received < file.size ? received : 0;
-  onProgress(Math.floor(start / file.size * 100));
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    request.open("PUT", sessionUrl); request.withCredentials = false; request.timeout = 180000;
-    request.setRequestHeader("Content-Type", mimeType);
-    request.setRequestHeader("Content-Range", `bytes ${start}-${file.size - 1}/${file.size}`);
-    request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.min(100, Math.floor((start + event.loaded) / file.size * 100))); };
-    request.onerror = request.ontimeout = () => reject(new Error("Koneksi upload terputus. Coba lagi untuk melanjutkan."));
-    request.onload = () => {
-      if (request.status === 404) { reject(new SessionExpiredError("Sesi upload berakhir. Coba lagi dengan foto yang sama.")); return; }
-      if (request.status < 200 || request.status >= 300) { reject(new Error("Upload belum selesai. Coba lagi untuk melanjutkan.")); return; }
-      try { const value = JSON.parse(request.responseText) as { id?: string }; if (!value.id) throw new Error(); resolve(value.id); }
-      catch { reject(new Error("Drive belum mengirim ID file. Coba lagi.")); }
-    };
-    request.send(file.slice(start));
-  });
-}
 
 export function PhotoUploader({ onUploaded, onBusyChange, compact = false }: Props) {
   const router = useRouter(); const inputId = useId();
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState(""); const previewRef = useRef("");
-  const [stage, setStage] = useState<Stage>("IDLE");
-  const [message, setMessage] = useState(""); const [progress, setProgress] = useState(0);
-  const [duplicateId, setDuplicateId] = useState<string | null>(null);
-  const resetSession = useRef(false); const uploadId = useRef(crypto.randomUUID()); const locked = useRef(false);
-  const busy = ["VALIDATING", "UPLOADING", "FINALIZING"].includes(stage);
-  useEffect(() => () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current); }, []);
-
-  const select = useCallback((selected: File | null) => {
-    if (locked.current) return;
-    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-    previewRef.current = selected ? URL.createObjectURL(selected) : ""; setPreview(previewRef.current);
-    setFile(selected); setStage(selected ? "QUEUED" : "IDLE"); setMessage(""); setProgress(0);
-    setDuplicateId(null); resetSession.current = false; uploadId.current = crypto.randomUUID();
-  }, []);
+  const [items, setItems] = useState<Item[]>([]); const itemsRef = useRef<Item[]>([]);
+  const [busy, setBusy] = useState(false); const busyRef = useRef(false);
+  const [message, setMessage] = useState("");
+  const callbacks = useRef({ onUploaded, onBusyChange });
+  useEffect(() => { callbacks.current = { onUploaded, onBusyChange }; }, [onUploaded, onBusyChange]);
+  useEffect(() => () => { itemsRef.current.forEach(item => URL.revokeObjectURL(item.preview)); }, []);
+  function update(id: string, changes: Partial<Item>) {
+    itemsRef.current = itemsRef.current.map(item => item.id === id ? { ...item, ...changes } : item);
+    setItems(itemsRef.current);
+  }
+  function select(files: File[]) {
+    if (busyRef.current || !files.length) return;
+    const remaining = MAX_UPLOAD_BATCH - itemsRef.current.length;
+    setMessage(files.length > remaining ? `Maksimal ${MAX_UPLOAD_BATCH} foto per antrean. ${files.length - Math.max(0, remaining)} file belum ditambahkan.` : "");
+    const added = files.slice(0, Math.max(0, remaining)).map(file => ({ id: crypto.randomUUID(), file,
+      preview: URL.createObjectURL(file), stage: "QUEUED" as const, progress: 0, capturedAt: "" }));
+    itemsRef.current = [...itemsRef.current, ...added]; setItems(itemsRef.current);
+  }
   useEffect(() => {
-    function handlePaste(event: ClipboardEvent) {
-      if (locked.current) return;
+    function paste(event: ClipboardEvent) {
       const target = event.target;
-      if (target instanceof HTMLElement && target.isContentEditable) return;
+      if (busyRef.current || target instanceof HTMLElement && target.isContentEditable) return;
       if (target instanceof HTMLInputElement && target.type !== "file") return;
       if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
-
-      const file = pastedPhoto(event);
-      if (!file) return;
-      event.preventDefault();
-      if (!supportedPhotoTypes.has(file.type)) {
-        select(null);
-        setMessage("Gunakan foto JPEG, PNG, atau WebP.");
-        setStage("FAILED");
-        return;
-      }
-      select(file);
+      const files = Array.from(event.clipboardData?.items ?? []).filter(item => item.kind === "file" && item.type.startsWith("image/"))
+        .flatMap(item => { const file = item.getAsFile(); return file ? [file] : []; });
+      if (files.length) { event.preventDefault(); select(files); }
     }
-
-    document.addEventListener("paste", handlePaste);
-    return () => document.removeEventListener("paste", handlePaste);
-  }, [select]);
-  function lock(value: boolean) { locked.current = value; onBusyChange?.(value); }
-  async function compress() {
-    if (!file || locked.current) return; lock(true); setStage("VALIDATING"); setMessage("");
-    try { const compressed = await compressBrowserPhoto(file); lock(false); select(compressed); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Kompresi gagal."); setStage("FAILED"); }
+    document.addEventListener("paste", paste);
+    return () => document.removeEventListener("paste", paste);
+  }, []);
+  function lock(value: boolean) { busyRef.current = value; setBusy(value); callbacks.current.onBusyChange?.(value); }
+  async function compress(item: Item) {
+    if (busyRef.current) return; lock(true);
+    try {
+      let capturedAt = item.capturedAt;
+      if (!capturedAt) {
+        const exif = await import("exifr").then(module => module.default.parse(item.file, { pick: ["DateTimeOriginal", "OffsetTimeOriginal"], reviveValues: false })).catch(() => null);
+        const instant = parseCaptureTime(exif?.DateTimeOriginal, exif?.OffsetTimeOriginal, Intl.DateTimeFormat().resolvedOptions().timeZone);
+        if (instant) { const date = new Date(instant); capturedAt = new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+      }
+      const file = await compressBrowserPhoto(item.file); URL.revokeObjectURL(item.preview);
+      update(item.id, { file, preview: URL.createObjectURL(file), capturedAt, stage: "QUEUED", message: undefined });
+    } catch (error) { update(item.id, { message: error instanceof Error ? error.message : "Kompresi gagal." }); }
     finally { lock(false); }
   }
-  async function upload(decision?: "use_existing" | "upload_again") {
-    if (!file || locked.current) return; lock(true); setStage("VALIDATING"); setMessage("");
-    let savedId: string | null = null;
+  async function upload(onlyId?: string, decision?: "use_existing" | "upload_again") {
+    if (busyRef.current) return;
+    const selected = itemsRef.current.filter(item => onlyId ? item.id === onlyId : ["QUEUED", "FAILED", "ATTACH_FAILED"].includes(item.stage));
+    if (!selected.length) return; lock(true); setMessage("");
+    // Pickers have a mutation lock; upload two files, but serialize attachments.
+    let attachments = Promise.resolve(); let saved = 0;
     try {
-      const prepared = await prepareBrowserPhoto(file);
-      const { response, payload } = await serverJson("/api/evidence/photos/start", {
-        uploadId: uploadId.current, size: prepared.size, mimeType: prepared.mimeType,
-        originalFilename: file.name, checksum: prepared.checksum, duplicateDecision: decision, resetSession: resetSession.current,
-      });
-      if (response.status === 409 && payload.code === "DUPLICATE") {
-        setDuplicateId(String(payload.duplicateEvidenceId)); setStage("QUEUED"); return;
-      }
-      if (!response.ok) throw new Error(String(payload.message || "Upload gagal dimulai."));
-      const evidenceId = String(payload.evidenceId);
-      if (payload.kind !== "EXISTING") {
-        let driveFileId: string;
-        if (payload.kind === "FINALIZE") driveFileId = String(payload.driveFileId);
-        else {
-          setStage("UPLOADING");
-          try { driveFileId = await putToDrive(String(payload.sessionUrl), file, prepared.mimeType, setProgress); }
-          catch (error) { resetSession.current = true; throw error; }
+      await processUploadQueue(selected, async item => {
+        let evidenceId = item.evidenceId;
+        try {
+          if (!evidenceId) {
+            update(item.id, { stage: "VALIDATING", message: undefined });
+            const result = await uploadBrowserPhoto(item.file, item.id, { decision,
+              capturedAt: item.capturedAt ? new Date(item.capturedAt).toISOString() : undefined,
+              onProgress: progress => update(item.id, { stage: "UPLOADING", progress }),
+              onFinalizing: () => update(item.id, { stage: "FINALIZING" }),
+            });
+            if ("duplicateId" in result) { update(item.id, { stage: "DUPLICATE" }); return; }
+            evidenceId = result.evidenceId; update(item.id, { evidenceId });
+          }
+          const id = evidenceId;
+          const attachment = attachments.then(() => callbacks.current.onUploaded?.(id));
+          attachments = attachment.then(() => undefined, () => undefined);
+          await attachment;
+          update(item.id, { stage: "SUCCESS", progress: 100, message: undefined }); saved++;
+        } catch (error) {
+          update(item.id, { evidenceId, stage: evidenceId ? "ATTACH_FAILED" : "FAILED",
+            message: evidenceId ? "Foto tersimpan, tetapi belum terlampir. Coba lampirkan lagi."
+              : error instanceof Error ? error.message : "Upload gagal. Coba lagi." });
         }
-        resetSession.current = false; setStage("FINALIZING");
-        const final = await serverJson("/api/evidence/photos/finalize", { uploadId: uploadId.current, driveFileId });
-        if (!final.response.ok) throw new Error(String(final.payload.message || "Finalisasi foto gagal."));
-      }
-      savedId = evidenceId; setStage("SUCCESS"); setDuplicateId(null);
-      await onUploaded?.(evidenceId); toast.success("Foto tersimpan"); router.refresh();
-    } catch (error) {
-      if (savedId) { setStage("SUCCESS"); setMessage("Foto tersimpan, tetapi belum terlampir. Pilih dari Evidence Library."); router.refresh(); }
-      else {
-        if (error instanceof SessionExpiredError) resetSession.current = true;
-        setMessage(error instanceof Error ? error.message : "Upload gagal. Coba lagi."); setStage("FAILED");
-      }
+      });
+      if (saved) toast.success(`${saved} foto siap digunakan`);
+      router.refresh();
     } finally { lock(false); }
   }
-  return <div className="space-y-4">
-    <div className="relative rounded-xl border border-dashed bg-muted/30 p-4">
-      {preview && <div className="mb-4 flex h-40 items-center justify-center overflow-hidden rounded-lg bg-muted">
-        {/* Browser-only preview; never sent to a public image host. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview} alt="Pratinjau foto yang dipilih" className="h-full w-full object-contain" />
-      </div>}
-      <label htmlFor={inputId} className="mb-2 flex items-center gap-2 text-sm font-medium"><ImagePlus size={18} /> Pilih foto atau tempel gambar</label>
-      <input id={inputId} disabled={busy} type="file" accept="image/jpeg,image/png,image/webp"
-        onChange={(event) => select(event.target.files?.[0] ?? null)} className="block w-full min-w-0 text-sm file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-secondary file:px-3" />
+  function remove(item: Item) {
+    URL.revokeObjectURL(item.preview);
+    itemsRef.current = itemsRef.current.filter(row => row.id !== item.id); setItems(itemsRef.current);
+  }
+  const remaining = items.filter(item => ["QUEUED", "FAILED", "ATTACH_FAILED"].includes(item.stage)).length;
+  const complete = items.filter(item => item.stage === "SUCCESS").length;
+  return <div className="space-y-4" aria-busy={busy}>
+    <div className="rounded-xl border border-dashed bg-muted/30 p-4">
+      <label htmlFor={inputId} className="mb-2 flex items-center gap-2 text-sm font-medium"><ImagePlus size={18} />Pilih beberapa foto atau tempel gambar</label>
+      <input id={inputId} disabled={busy} type="file" multiple accept="image/jpeg,image/png,image/webp"
+        onChange={event => { select(Array.from(event.target.files ?? [])); event.target.value = ""; }}
+        className="block w-full min-w-0 text-base file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-secondary file:px-3" />
       {compact && <label className={`mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${busy ? "pointer-events-none opacity-50" : ""}`}>
-        <Camera size={18} /> Kamera <input disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
-          onChange={(event) => select(event.target.files?.[0] ?? null)} className="sr-only" />
+        <Camera size={18} />Kamera<input disabled={busy} type="file" accept="image/jpeg,image/png,image/webp" capture="environment"
+          onChange={event => { select(Array.from(event.target.files ?? [])); event.target.value = ""; }} className="sr-only" />
       </label>}
-      <p className="mt-2 truncate text-xs text-muted-foreground">{file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)} MB` : "JPG, PNG, WebP · Maks. 15 MB · Tersimpan privat"}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Tempel tangkapan layar dengan Ctrl+V atau ⌘V.</p>
+      <p className="mt-2 text-xs text-muted-foreground">JPG, PNG, WebP · Maks. 15 MB per foto · 100 foto per antrean · Privat</p>
+      <p className="mt-1 text-xs text-muted-foreground">Tempel tangkapan layar dengan Ctrl+V atau Command+V.</p>
     </div>
-    {file && file.size > MAX_PHOTO_BYTES && <Feedback>Foto melebihi 15 MB. <Button variant="outline" onClick={compress} disabled={busy}>Kompres foto</Button></Feedback>}
-    {duplicateId && <div className="space-y-3 rounded-xl bg-muted p-4"><p className="text-sm">Foto ini sudah ada.</p><div className="flex flex-wrap gap-2">
-      <Button disabled={busy} onClick={() => upload("use_existing")}>Gunakan yang ada</Button><Button variant="outline" disabled={busy} onClick={() => upload("upload_again")}>Unggah lagi</Button>
-    </div></div>}
-    {message && <Feedback tone={stage === "SUCCESS" ? "info" : "error"}>{message}</Feedback>}
-    {stage === "SUCCESS" && !message && <Feedback tone="success">Foto siap digunakan.</Feedback>}
-    {busy && <div role="status" className="space-y-2 text-sm text-muted-foreground">
-      {stage === "VALIDATING" ? "Memeriksa foto…" : stage === "UPLOADING" ? `Mengunggah · ${progress}%` : "Menyimpan foto…"}
-      {stage === "UPLOADING" && <progress value={progress} max={100} aria-label="Progres upload foto" className="h-1.5 w-full accent-primary" />}
-    </div>}
-    {file && !duplicateId && stage !== "SUCCESS" && file.size <= MAX_PHOTO_BYTES && <Button disabled={busy} onClick={() => upload()} className="w-full">
-      {busy ? "Mengunggah…" : stage === "FAILED" ? "Lanjutkan upload" : "Unggah foto"}
-    </Button>}
+    {message && <Feedback>{message}</Feedback>}
+    {items.length > 0 && <p role="status" className="text-sm text-muted-foreground">{complete} dari {items.length} foto siap{busy ? " · Mengunggah…" : ""}</p>}
+    <div className="max-h-[40dvh] space-y-3 overflow-y-auto overscroll-contain">
+      {items.map(item => <div key={item.id} className="rounded-xl border p-3">
+        <div className="flex items-start gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img loading="lazy" src={item.preview} alt={`Pratinjau ${item.file.name}`} className="h-16 w-16 shrink-0 rounded-lg object-contain bg-muted" />
+          <div className="min-w-0 flex-1"><p className="break-all text-sm font-medium">{item.file.name}</p><p className="text-xs text-muted-foreground">{(item.file.size / 1024 / 1024).toFixed(1)} MB</p>
+            <p className="mt-1 text-xs">{({ QUEUED: "Dalam antrean", VALIDATING: "Memeriksa…", UPLOADING: `Mengunggah ${item.progress}%`, FINALIZING: "Menyimpan…", SUCCESS: "Siap digunakan", FAILED: "Gagal", DUPLICATE: "Foto ini sudah ada", ATTACH_FAILED: "Tersimpan, belum terlampir" })[item.stage]}</p>
+          </div>
+          <Button variant="ghost" size="icon" aria-label={`Hapus ${item.file.name} dari antrean`} disabled={busy} onClick={() => remove(item)}><X size={16} /></Button>
+        </div>
+        {["VALIDATING", "UPLOADING", "FINALIZING"].includes(item.stage) && <progress value={item.progress} max={100} aria-label={`Progres ${item.file.name}`} className="mt-2 w-full accent-primary" />}
+        {item.stage !== "SUCCESS" && !item.evidenceId && <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="flex min-h-11 cursor-pointer items-center">Koreksi waktu pengambilan</summary>
+          <label>Waktu pengambilan (opsional)<input type="datetime-local" value={item.capturedAt} disabled={busy} onChange={event => update(item.id, { capturedAt: event.target.value })} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border bg-background px-2 text-base" /></label>
+          <p>Metadata foto digunakan bila tersedia.</p>
+        </details>}
+        {item.message && <p role="alert" className="mt-2 text-sm text-destructive">{item.message}</p>}
+        {item.file.size > MAX_PHOTO_BYTES && <Button variant="outline" disabled={busy} onClick={() => compress(item)} className="mt-2">Kompres foto</Button>}
+        {item.stage === "DUPLICATE" && <div className="mt-2 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => upload(item.id, "use_existing")}>Gunakan yang ada</Button><Button variant="outline" disabled={busy} onClick={() => upload(item.id, "upload_again")}>Unggah lagi</Button></div>}
+        {["FAILED", "ATTACH_FAILED"].includes(item.stage) && <Button variant="outline" disabled={busy} onClick={() => upload(item.id)} className="mt-2">{item.evidenceId ? "Lampirkan lagi" : "Lanjutkan upload"}</Button>}
+      </div>)}
+    </div>
+    {remaining > 0 && <Button disabled={busy} onClick={() => upload()} className="w-full">{busy ? "Mengunggah…" : `Unggah / lanjutkan ${remaining} foto`}</Button>}
+    {items.length > 0 && complete === items.length && <Feedback tone="success">Semua foto siap digunakan.</Feedback>}
   </div>;
 }

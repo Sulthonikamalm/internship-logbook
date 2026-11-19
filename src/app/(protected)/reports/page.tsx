@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { parseWorkCategory } from "@/features/work/domain/category";
 import { getServerEnv } from "@/lib/env/server";
 import { isLocalReportHost } from "@/features/reports/domain/photo-link";
+import { GenerationHistory } from "@/features/agent/components/generation-history";
 
 export const metadata: Metadata = { title: "Reports — InternFlow" };
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ category?: string; from?: string; to?: string }> }) {
@@ -15,5 +16,5 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const shares = await listReportPhotoShares();
   const localPhotoLinks = isLocalReportHost(new URL(getServerEnv().APP_BASE_URL).hostname);
-  return <div className="space-y-7"><PageHeader title="Laporan" description="Pilih kegiatan, periode, lalu ekspor." /><ExportForm initialToday={localDateAt(new Date(), user.timezone)} initialCategory={parseWorkCategory(params.category)} initialFrom={params.from && isRealDate(params.from) ? params.from : undefined} initialTo={params.to && isRealDate(params.to) ? params.to : undefined} localPhotoLinks={localPhotoLinks} /><ActivePhotoShares shares={shares} timezone={user.timezone} /></div>;
+  return <div className="space-y-7"><PageHeader title="Laporan" description="Pilih kegiatan, periode, lalu ekspor." /><ExportForm initialToday={localDateAt(new Date(), user.timezone)} initialCategory={parseWorkCategory(params.category)} initialFrom={params.from && isRealDate(params.from) ? params.from : undefined} initialTo={params.to && isRealDate(params.to) ? params.to : undefined} localPhotoLinks={localPhotoLinks} /><GenerationHistory /><ActivePhotoShares shares={shares} timezone={user.timezone} /></div>;
 }

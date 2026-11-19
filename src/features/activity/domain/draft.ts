@@ -8,7 +8,7 @@ const draftSchema = z.object({
   activityDate: z.string(),
   startTime: z.string(),
   endTime: z.string(),
-  source: z.enum(["manual", "quick_capture", "todo"]),
+  source: z.enum(["manual", "quick_capture", "todo", "codex"]),
   status: z.enum(["DRAFT", "READY", "ARCHIVED"]),
   idempotencyKey: z.uuid(),
   savedAt: z.string(),

@@ -6,11 +6,15 @@ import type { ExportDataResult } from "./get-export-data";
 import { categoryLabels } from "@/features/work/domain/category";
 import { sanitizeCellText } from "../excel/sanitize-cell";
 import type { ReportPhotoShare } from "../domain/photo-link";
+import { buildDocumentationSheet, type DocumentationImage } from "../excel/build-documentation-sheet";
+import { styleReportSheet } from "../excel/sheet-style";
 
 export type GenerateWorkbookOptions = {
   includeEvidence: boolean;
   baseUrl: string;
   photoShare?: ReportPhotoShare | null;
+  documentation?: DocumentationImage[];
+  generation?: { period: string; summary: string; gaps: { date: string; reason: string }[] };
 };
 
 /** Produces a report with a reading guide, printable rows and private photo links. */
@@ -43,6 +47,11 @@ export async function generateWorkbook(
       : "Tidak disertakan."],
     ["Keterangan", "Catatan panjang diteruskan pada baris Lanjutan dengan nomor yang sama. Gunakan filter pada baris judul untuk mencari data."],
   ]);
+  if (options.generation) summary.addRows([
+    ["Jenis laporan", ({ daily: "Harian", weekly: "Mingguan", monthly: "Bulanan", custom: "Rentang pilihan" } as Record<string, string>)[options.generation.period] ?? options.generation.period], ["Ringkasan periode", sanitizeCellText(options.generation.summary)],
+    ["Perlu dilengkapi", options.generation.gaps.length],
+    ["Salinan gambar", "Thumbnail ikut tersimpan dalam Excel. Pengaturan akses tautan berlaku pada bukti asli di aplikasi."],
+  ]);
   summary.eachRow((row, index) => {
     row.height = index === 1 ? 42 : index > 5 ? 60 : 30;
     row.eachCell(cell => {
@@ -60,6 +69,13 @@ export async function generateWorkbook(
   );
   if (options.includeEvidence) buildEvidenceSheet(workbook, data.evidenceDetails, options.baseUrl, options.photoShare ?? undefined);
   if (hasCompletedTodos) buildTodoSheet(workbook, data.todos!);
+  if (options.documentation) buildDocumentationSheet(workbook, data.evidenceDetails, options.documentation, options.baseUrl, options.photoShare ?? undefined);
+  if (options.generation) {
+    const gaps = workbook.addWorksheet("Perlu Dilengkapi");
+    gaps.columns = [{ header: "Tanggal", key: "date", width: 16 }, { header: "Keterangan", key: "reason", width: 100 }];
+    options.generation.gaps.forEach(item => gaps.addRow({ date: item.date, reason: sanitizeCellText(item.reason) }));
+    styleReportSheet(gaps, [16, 100]);
+  }
 
   const arrayBuffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(arrayBuffer);

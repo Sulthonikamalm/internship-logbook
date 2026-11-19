@@ -18,8 +18,8 @@ const repositorySchema = z.object({ id: z.number().int().positive(), full_name: 
 const commitSchema = z.object({ sha: z.string().regex(/^[0-9a-f]{40}$/), author: z.object({ id: z.number().int() }).nullable(), commit: z.object({ message: z.string(), author: z.object({ date: z.iso.datetime({ offset: true }) }).nullable(), committer: z.object({ date: z.iso.datetime({ offset: true }) }).nullable() }) });
 type CacheCommit = { repository_id: string; repository_name: string; sha: string; message: string; commit_url: string; branch: string | null; author_date: string | null };
 
-export async function syncGitHubCommits(targetRepo?: string): Promise<SyncCommitsResult> {
-  const user = await requireActiveUser();
+export async function syncGitHubCommits(targetRepo?: string, actor?: { userId: string }): Promise<SyncCommitsResult> {
+  const user = actor ?? await requireActiveUser();
   const repoFilter = normalizeGitHubRepoTarget(targetRepo);
   if (repoFilter === null) return { ok: false, code: "REPO_UNAVAILABLE", message: "Masukkan owner/repository atau tautan repo GitHub, misalnya COE-INTEREST/WEBSITECOE_INTEREST." };
   const admin = createAdminClient();

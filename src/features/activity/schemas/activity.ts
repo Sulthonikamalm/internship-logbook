@@ -18,7 +18,7 @@ export const activityFieldsSchema = z.object({
   startTime: optionalTime,
   endTime: optionalTime,
   todoId: z.string().uuid().optional().nullable(),
-  source: z.enum(["manual", "quick_capture", "todo"]),
+  source: z.enum(["manual", "quick_capture", "todo", "codex"]),
   status: z.enum(["DRAFT", "READY", "ARCHIVED"]),
 }).strict().superRefine((value, context) => {
   if (value.endTime && !value.startTime) {

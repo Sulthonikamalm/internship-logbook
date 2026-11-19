@@ -1,0 +1,13 @@
+{
+  "appUrl": "http://localhost:3000",
+  "repositories": ["Sulthonikamalm/internship-logbook"],
+  "profiles": {
+    "Sulthonikamalm/internship-logbook": {
+      "localPath": ".",
+      "install": ["npm", "ci", "--ignore-scripts"],
+      "start": ["npm", "run", "dev", "--", "--hostname", "127.0.0.1", "--port", "{port}"],
+      "routes": [{ "path": "/login", "readySelector": "form" }],
+      "env": {}
+    }
+  }
+}
