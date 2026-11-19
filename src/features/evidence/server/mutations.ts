@@ -109,9 +109,11 @@ export async function deleteEvidence(evidenceId: string, detachAll = false): Pro
   const user = await requireActiveUser();
   if (!uuid.safeParse(evidenceId).success) return { ok: false, message: "Evidence tidak tersedia." };
   const supabase = await createClient();
-  const { data: started, error } = await supabase.rpc("begin_evidence_delete", {
+  const { data, error } = await supabase.rpc("begin_evidence_delete", {
     p_evidence_id: evidenceId, p_detach_all: detachAll,
   });
+  // RETURNS TABLE arrives as an array through the Supabase REST API.
+  const started = Array.isArray(data) ? data[0] : data;
   if (error) return { ok: false, message: "Evidence gagal dihapus. Coba lagi." };
   if (!started) return { ok: false, message: "Evidence tidak tersedia." };
   if (started.blocked_count > 0) return { ok: false, code: "ASSIGNED",
