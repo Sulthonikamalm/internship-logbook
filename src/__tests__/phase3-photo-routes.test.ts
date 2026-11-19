@@ -12,7 +12,9 @@ const fake = vi.hoisted(() => ({
   deleteFails: false,
   updates: [] as unknown[],
   getDriveMetadata: vi.fn(), downloadDriveBytes: vi.fn(), deleteDriveFile: vi.fn(),
+  schedulePreview: vi.fn(),
 }));
+vi.mock("next/server", () => ({ after: fake.schedulePreview }));
 
 vi.mock("@/features/evidence/server/http", () => ({
   sameOrigin: (request: Request) => request.headers.get("origin") === new URL(request.url).origin,
@@ -75,6 +77,7 @@ describe("photo finalization across Drive and database", () => {
     expect(await response.json()).toEqual({ ok: true, evidenceId: fake.evidence?.id });
     expect(fake.deleteDriveFile).not.toHaveBeenCalled();
     expect(fake.updates).toEqual([]);
+    expect(fake.schedulePreview).toHaveBeenCalledWith(expect.any(Function));
   });
   it("hides another user's guessed upload without querying Drive", async () => {
     fake.evidence = null;

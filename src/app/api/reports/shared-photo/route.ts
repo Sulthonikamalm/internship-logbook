@@ -10,7 +10,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const tokenFormat = /^[A-Za-z0-9_-]{43}$/;
 type SharedPhotoGrant = {
   share: { user_id: string; owner: { display_name: string } };
-  evidence: { id: string; photo: StoredPhoto };
+  evidence: { id: string; photo: StoredPhoto & { checksum: string } };
 };
 
 /** A recipient needs only the grant contained in their exported workbook. */
@@ -29,7 +29,7 @@ export async function POST(request: Request): Promise<Response> {
     // Composite foreign keys join each grant and photo through the same owner.
     const grant = await admin.from("report_photo_share_evidences").select(`
       share:report_photo_shares!inner(user_id,owner:profiles!inner(display_name)),
-      evidence:evidences!inner(id,photo:photo_evidences!inner(drive_file_id,drive_folder_id,mime_type,size_bytes,stored_filename))
+      evidence:evidences!inner(id,photo:photo_evidences!inner(drive_file_id,drive_folder_id,mime_type,size_bytes,stored_filename,checksum))
     `).eq("share_id", shareId).eq("evidence_id", evidenceId)
       .eq("share.token_hash", hashReportToken(token)).is("share.revoked_at", null)
       .not("share.activated_at", "is", null).gt("share.expires_at", new Date().toISOString())

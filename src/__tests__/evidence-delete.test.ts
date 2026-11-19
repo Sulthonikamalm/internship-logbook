@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fake = vi.hoisted(() => ({
   rpc: vi.fn(), deleteDriveFile: vi.fn(), update: vi.fn(), revalidatePath: vi.fn(),
+  after: vi.fn(),
 }));
+vi.mock("next/server", () => ({ after: fake.after }));
 vi.mock("next/cache", () => ({ revalidatePath: fake.revalidatePath }));
 vi.mock("@/lib/auth/require-active-user", () => ({ requireActiveUser: async () => ({ userId: "00000000-0000-4000-8000-000000000001" }) }));
 vi.mock("@/lib/google-drive/delete", () => ({ deleteDriveFile: fake.deleteDriveFile }));

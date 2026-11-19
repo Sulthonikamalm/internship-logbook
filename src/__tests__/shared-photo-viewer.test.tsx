@@ -32,6 +32,12 @@ function photoResponse(name: string) {
 }
 
 describe("shared report photo identity and loading", () => {
+  it("shows the server-provided name while the image request is still pending", () => {
+    fetchPhoto.mockReturnValueOnce(new Promise(() => {}));
+    render(<SharedPhotoViewer {...props} initialOwnerName="Nur Alifia Rustan" />);
+    expect(screen.getByRole("heading", { name: "Foto lampiran laporan Nur Alifia Rustan" })).toBeTruthy();
+    expect(screen.getByText("Memuat foto…")).toBeTruthy();
+  });
   it.each(["Sulthonika", "Alifa Éka"])("labels the report using uploader %s", async name => {
     fetchPhoto.mockResolvedValueOnce(photoResponse(name));
     const { unmount } = render(<SharedPhotoViewer {...props} />);

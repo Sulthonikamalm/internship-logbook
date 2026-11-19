@@ -3,9 +3,9 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Loader2, ImageOff } from "lucide-react";
 
-export function SharedPhotoViewer({ shareId, evidenceId }: { shareId: string; evidenceId: string }) {
+export function SharedPhotoViewer({ shareId, evidenceId, initialOwnerName = "" }: { shareId: string; evidenceId: string; initialOwnerName?: string }) {
   const [photo, setPhoto] = useState<{ url: string; width: number; height: number } | null>(null);
-  const [ownerName, setOwnerName] = useState("");
+  const [ownerName, setOwnerName] = useState(initialOwnerName);
   const [error, setError] = useState("");
   useEffect(() => {
     const token = window.location.hash.slice(1);
@@ -23,7 +23,7 @@ export function SharedPhotoViewer({ shareId, evidenceId }: { shareId: string; ev
       if (!response.ok) throw new Error(response.status === 404 ? "Tautan berakhir, dicabut, atau foto tidak tersedia." : "Foto belum dapat dimuat. Coba lagi.");
       if (controller.signal.aborted) return;
       const name = response.headers.get("X-InternFlow-Owner-Name");
-      setOwnerName(name ? decodeURIComponent(name) : "");
+      if (name) setOwnerName(decodeURIComponent(name));
       const blob = await response.blob();
       if (!blob.type.startsWith("image/")) throw new Error("Foto tidak tersedia.");
       if (controller.signal.aborted) return;

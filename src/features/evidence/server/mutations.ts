@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { removeReportPreviews } from "@/lib/photos/report-preview-storage.mjs";
 import { z } from "zod";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { createClient } from "@/lib/supabase/server";
@@ -146,6 +149,10 @@ export async function deleteEvidence(evidenceId: string, detachAll = false): Pro
     return { ok: false, code: "DELETE_PENDING",
       message: "File dihapus, tetapi status belum selesai. Pengelola perlu merekonsiliasi." };
   }
+  if (started.type === "PHOTO") after(async () => {
+    try { await removeReportPreviews(createAdminClient(), user.userId, evidenceId); }
+    catch { console.error("[report.preview] Preview cleanup failed; the deleted evidence remains inaccessible."); }
+  });
   revalidatePath("/evidence");
   return { ok: true };
 }

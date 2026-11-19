@@ -9,6 +9,9 @@ import { deleteDriveFile } from "@/lib/google-drive/delete";
 import { DriveError, driveMessage, logDriveError } from "@/lib/google-drive/errors";
 import exifr from "exifr";
 import { parseCaptureTime } from "../domain/capture-time";
+import { after } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { storeReportPreviews } from "@/lib/photos/report-preview-storage.mjs";
 
 
 
@@ -103,6 +106,10 @@ export async function finalizePhotoUpload(request: Request, user: { userId: stri
       console.error(`[evidence.finalize] database code=${error.code}`);
       return cleanUp("Metadata foto gagal disimpan.");
     }
+    after(async () => {
+      try { await storeReportPreviews(createAdminClient(), userId, evidenceId, inspection.checksum, bytes); }
+      catch { console.error("[report.preview] Background preview generation failed; it can be retried on demand."); }
+    });
     return Response.json({ ok: true, evidenceId: evidence.id },
       { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

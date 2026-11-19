@@ -114,7 +114,11 @@ Saat mengekspor laporan, **akses foto default bersifat privat**. Jika dosen perl
 3. Tautan **Buka foto** pada sheet **Logbook** dan **Evidence Detail** hanya berlaku untuk foto yang masuk dalam ekspor itu.
 4. Hentikan akses kapan saja dari daftar **Akses foto aktif** di halaman Laporan.
 
-Foto tetap berada di Drive privat. Pemegang file Excel dapat membuka foto yang dibagikan selama tautannya aktif, jadi kirim file hanya kepada penerima yang dituju.
+Foto asli tetap berada di Drive privat. Pratinjau WebP 960/1920 piksel disiapkan sesudah upload dan disimpan di bucket Supabase privat `report-photo-previews`, sehingga pembaca laporan tidak perlu menunggu pengambilan file asli. Server memeriksa izin tautan dan status evidence pada setiap permintaan. Nama pengunggah ditampilkan sejak HTML awal untuk pasangan ID laporan/foto yang aktif; file foto tetap memerlukan token rahasia di fragmen tautan Excel.
+
+Untuk menyiapkan pratinjau foto lama, jalankan `node scripts/prepare-report-previews.mjs` dengan konfigurasi server lokal. Gunakan `--check` untuk memeriksa kelengkapan tanpa mengubah data. Bucket dibuat privat melalui Storage API; tidak ada policy akses publik. Pemegang file Excel dapat membuka foto yang dibagikan selama tautannya aktif, jadi kirim file hanya kepada penerima yang dituju.
+
+Function Vercel ditempatkan di Singapura (`sin1`) melalui `vercel.json` untuk melayani pengguna di Indonesia/Asia Tenggara.
 
 > **Akses dari perangkat dosen memerlukan situs HTTPS publik.** Atur `APP_BASE_URL` ke alamat publik **sebelum** mengekspor. Excel yang dibuat saat URL masih `http://localhost:3000` harus diekspor ulang setelah situs dipublikasikan.
 
