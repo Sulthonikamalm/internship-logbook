@@ -132,7 +132,8 @@ mingguan, atau bulanan untuk repository tertentu. Codex meninjau foto yang belum
 dipakai, menggunakan screenshot versi commit atau diff sebagai cadangan, dan
 menyimpan hasil ke aplikasi serta Excel dengan thumbnail dan tautan bukti.
 
-Terapkan migrasi `20261119090000_codex_logbook.sql`, jalankan
+Terapkan migrasi `20261119081446_codex_logbook.sql` dan
+`20261119082015_codex_logbook_indexes.sql`, jalankan
 `npm run logbook:login`, lalu muat ulang sesi Codex untuk mengaktifkan MCP project.
 Profil screenshot aplikasi dan contoh perintah tersedia dalam
 [panduan Codex Logbook](docs/CODEX_LOGBOOK.md).

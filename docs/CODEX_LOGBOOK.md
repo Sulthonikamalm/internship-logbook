@@ -7,8 +7,9 @@ dan membuat Excel. Tidak diperlukan API key model tambahan.
 
 ## Aktivasi
 
-1. Terapkan migrasi baru `20261119090000_codex_logbook.sql` melalui alur migrasi
-   Supabase proyek. Jangan menjalankan ulang migrasi yang sudah tercatat.
+1. Terapkan migrasi `20261119081446_codex_logbook.sql` dan
+   `20261119082015_codex_logbook_indexes.sql` melalui alur migrasi Supabase proyek.
+   Jangan menjalankan ulang migrasi yang sudah tercatat.
 2. Jalankan aplikasi lokal atau deploy perubahan aplikasi. Environment Google
    Drive dan GitHub tetap menggunakan konfigurasi aplikasi yang sudah ada.
 3. Dari root repository, jalankan `npm run logbook:login` di terminal interaktif.
