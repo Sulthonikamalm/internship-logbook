@@ -34,16 +34,18 @@ export function SharedPhotoViewer({ shareId, evidenceId, initialOwnerName = "" }
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [shareId, evidenceId]);
   const title = `Foto lampiran laporan${ownerName ? ` ${ownerName}` : ""}`;
-  return <main className="app-canvas flex min-h-dvh items-center justify-center p-4 sm:p-8">
+  return <main className="app-canvas flex min-h-dvh items-start justify-center px-4 py-8 sm:px-8 sm:py-12">
     <section className="surface w-full max-w-4xl p-5 sm:p-8" aria-live="polite">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Image src="/internflow-logo.png" width={163} height={55} alt="InternFlow" className="h-auto w-36 object-contain" preload />
         <span className="text-sm font-medium text-muted-foreground">by Sulthonika</span>
       </div>
       <h1 className="mt-8 break-words text-2xl font-semibold tracking-tight">{title}</h1>
-      {photo ? <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card"><Image src={photo.url} width={photo.width} height={photo.height} unoptimized loading="eager" fetchPriority="high" alt={title} className="mx-auto h-auto max-h-[75dvh] w-auto max-w-full object-contain" onError={() => { setPhoto(null); setError("Foto belum dapat ditampilkan. Coba lagi."); }} /></div>
-        : error ? <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border p-5 text-sm text-muted-foreground"><ImageOff size={20} className="shrink-0" /><p>{error}</p></div>
-        : <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border p-5 text-sm text-muted-foreground"><Loader2 size={20} className="animate-spin" /><p>Memuat foto…</p></div>}
+      <div className="mt-5 flex h-[min(65dvh,42rem)] items-center justify-center overflow-hidden rounded-2xl border border-border bg-card" aria-busy={!photo && !error}>
+        {photo ? <Image src={photo.url} width={photo.width} height={photo.height} unoptimized loading="eager" fetchPriority="high" alt={title} className="h-full w-full object-contain" onError={() => { setPhoto(null); setError("Foto belum dapat ditampilkan. Coba lagi."); }} />
+          : error ? <div className="flex items-start gap-3 p-5 text-sm text-muted-foreground"><ImageOff size={20} className="shrink-0" /><p>{error}</p></div>
+          : <div className="flex items-center gap-3 p-5 text-sm text-muted-foreground" role="status"><Loader2 size={20} className="animate-spin" /><p>Memuat foto…</p></div>}
+      </div>
       <p className="mt-5 text-xs text-muted-foreground">Tautan dari pemilik laporan. Akses berakhir sesuai masa berlaku atau saat dicabut.</p>
     </section>
   </main>;
