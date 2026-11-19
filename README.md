@@ -131,6 +131,12 @@ Function Vercel ditempatkan di Singapura (`sin1`) melalui `vercel.json` untuk me
 
 ## 🤖 Logbook melalui Codex
 
+Pengguna dapat mengunduh paket MCP mandiri dan panduan pemasangan dari **`/mcp`**
+di website. Tautannya juga tersedia di halaman login dan Integrasi.
+Jalankan `npm ci`, `npm run setup`, lalu `npm run login` dalam folder paket.
+Setiap pengguna masuk dengan akun InternFlow sendiri; paket publik tidak memuat
+credential pengelola. Paket ZIP/checksum dibuat otomatis sebelum dev/build.
+
 Unggah hingga **100 foto per antrean**, lalu minta Codex menyusun logbook harian,
 mingguan, atau bulanan untuk repository tertentu. Codex meninjau foto yang belum
 dipakai, menggunakan screenshot versi commit atau diff sebagai cadangan, dan

@@ -7,6 +7,9 @@ import { SyncedCommitsCard } from "@/features/integrations/github/components/syn
 import { PageHeader } from "@/components/ui/page-header";
 import { Feedback } from "@/components/ui/feedback";
 import { DriveConnectionCard, DriveConnectionFallback } from "@/features/integrations/drive/components/connection-card";
+import Link from "next/link";
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 export const metadata: Metadata = { title: "Integrasi — InternFlow" };
 const errors: Record<string,string> = { state_mismatch: "Sesi koneksi tidak cocok. Coba hubungkan ulang.", state_expired: "Sesi koneksi berakhir. Coba lagi.", user_mismatch: "Akun InternFlow berubah. Coba lagi.", oauth_not_configured: "GitHub belum dikonfigurasi oleh pengelola.", callback_not_configured: "Alamat callback GitHub perlu disesuaikan oleh pengelola.", encryption_not_configured: "Penyimpanan token GitHub belum dikonfigurasi.", authorization_cancelled: "Otorisasi GitHub dibatalkan.", account_change_required: "Akun GitHub berbeda. Pilih izinkan ganti akun saat menghubungkan ulang." };
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<{ success?: string; error?: string }> }) {
@@ -19,6 +22,7 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
     <ConnectionCard connection={connection} />
     {(commits.count > 0 || connection?.connectionStatus === "CONNECTED") && <SyncedCommitsCard key={`${connection?.id}-${connection?.lastSyncedAt}`} commits={commits.items} count={commits.count} />}
     <Suspense fallback={<DriveConnectionFallback />}><DriveConnectionCard /></Suspense>
+    <section className="surface flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center"><div><h2 className="font-semibold">Codex &amp; MCP</h2><p className="mt-1 max-w-lg text-sm leading-relaxed text-muted-foreground">Susun logbook dari percakapan Codex. Unduh penghubung, pasang di perangkatmu, lalu masuk dengan akun InternFlow sendiri.</p></div><Button asChild variant="outline"><Link href="/mcp"><Download size={17} />Unduh MCP</Link></Button></section>
     <details className="text-xs leading-relaxed text-muted-foreground"><summary className="min-h-11 cursor-pointer">Privasi evidence</summary><p className="mt-2">Commit tidak otomatis menjadi Activity. Token hanya digunakan server. Evidence yang sudah dipilih tetap tersimpan saat koneksi atau akses repo berubah.</p></details>
   </div>;
 }

@@ -45,3 +45,8 @@ next-env.d.ts
 # Local Codex credentials, screenshots, checkpoints, and exported reports
 /.codex/local/
 /.codex/logbook.local.json
+
+# Public MCP artifacts are rebuilt from an explicit allowlist before dev/build.
+/public/downloads/internflow-mcp.zip
+/public/downloads/internflow-mcp.sha256
+/public/downloads/internflow-mcp.json

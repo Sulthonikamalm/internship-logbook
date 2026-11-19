@@ -1,0 +1,25 @@
+{
+  "name": "internflow-mcp-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Penghubung akun InternFlow ke Codex melalui MCP lokal.",
+  "engines": { "node": "^22.22.2 || ^24.15.0 || >=26.0.0" },
+  "scripts": {
+    "setup": "node setup.mjs",
+    "connect:codex": "node connect-codex.mjs",
+    "login": "node scripts/logbook/index.mjs login",
+    "logout": "node scripts/logbook/index.mjs logout",
+    "mcp": "node scripts/logbook/index.mjs mcp",
+    "logbook": "node scripts/logbook/index.mjs",
+    "logbook:login": "node scripts/logbook/index.mjs login",
+    "logbook:mcp": "node scripts/logbook/index.mjs mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@supabase/supabase-js": "2.117.2",
+    "playwright": "1.65.1",
+    "sharp": "0.35.5",
+    "zod": "4.6.7"
+  }
+}

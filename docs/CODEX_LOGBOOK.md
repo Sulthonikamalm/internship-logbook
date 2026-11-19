@@ -5,7 +5,23 @@ Todo, absensi, foto Library, dan commit dari repository yang disebut dalam
 perintah. Backend memvalidasi sumber, mengalokasikan foto, menyimpan kegiatan,
 dan membuat Excel. Tidak diperlukan API key model tambahan.
 
-## Aktivasi
+## Unduh dari website (untuk pengguna)
+
+Paket mandiri tersedia di [MCP untuk Codex](https://internship-logbook-kijc.vercel.app/mcp).
+Unduh ZIP, ekstrak ke folder tetap, lalu jalankan `npm ci`, `npm run setup`,
+dan `npm run login` dengan akun aplikasi milikmu. Tidak perlu clone website,
+menjalankan migrasi, atau meminta environment pengelola.
+
+Daftarkan server melalui `npm run connect:codex` jika Codex CLI tersedia,
+atau gunakan pengaturan STDIO dari `codex-config.toml` hasil setup di Codex desktop.
+Muat ulang sesi Codex setelah menambahkan server. `npm run logout` mengakhiri sesi.
+
+Setup mengambil konfigurasi autentikasi publik dari `/api/mcp/config` dan
+menyimpannya di `.codex/local/public-client.json`. Paket dibangun dari daftar
+file eksplisit; `.env`, sesi, hasil laporan, screenshot, dan credential server
+tidak termasuk unduhan. Akses laporan tetap diperiksa melalui sesi pengguna dan RLS.
+
+## Aktivasi dari repository (untuk pengelola)
 
 1. Terapkan migrasi `20261119081446_codex_logbook.sql` dan
    `20261119082015_codex_logbook_indexes.sql` melalui alur migrasi Supabase proyek.

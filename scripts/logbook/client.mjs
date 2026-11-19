@@ -3,15 +3,25 @@ import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import { validatePublicConfig } from "./public-config.mjs";
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const localDir = resolve(root, ".codex/local");
 try { process.loadEnvFile(resolve(root, ".env.local")); } catch (error) { if (error.code !== "ENOENT") throw new Error("Konfigurasi environment lokal tidak dapat dibaca."); }
+let publicConfig;
+try { publicConfig = validatePublicConfig(JSON.parse(await readFile(resolve(localDir, "public-client.json"), "utf8"))); }
+catch (error) { if (error.code !== "ENOENT") throw new Error("Konfigurasi klien tidak valid. Jalankan npm run setup kembali."); }
+function authConfiguration() {
+  const url = publicConfig?.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = publicConfig?.publishableKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Jalankan npm run setup, atau isi konfigurasi Supabase publik di environment lokal.");
+  return { url, key };
+}
 export async function configuration() {
   let local = {};
   try { local = JSON.parse(await readFile(resolve(root, ".codex/logbook.local.json"), "utf8")); }
   catch (error) { if (error.code !== "ENOENT") throw new Error("Konfigurasi logbook.local.json tidak valid."); }
-  const appUrl = new URL(local.appUrl || process.env.LOGBOOK_APP_URL || process.env.APP_BASE_URL || "http://localhost:3000");
+  const appUrl = new URL(local.appUrl || process.env.LOGBOOK_APP_URL || process.env.APP_BASE_URL || publicConfig?.appUrl || "http://localhost:3000");
   if (appUrl.username || appUrl.password || (appUrl.protocol !== "https:" && !(appUrl.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(appUrl.hostname))))
     throw new Error("Alamat aplikasi harus HTTPS atau localhost.");
   return { ...local, appUrl: appUrl.origin };
@@ -49,14 +59,13 @@ export async function writePrivateJson(path, value) {
   await rename(temporary, path);
 }
 async function saveSession(session, config) {
-  const text = await protect(JSON.stringify({ session, appUrl: config.appUrl, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL }));
+  const text = await protect(JSON.stringify({ session, appUrl: config.appUrl, supabaseUrl: authConfiguration().url }));
   await mkdir(localDir, { recursive: true });
   const temporary = `${sessionFile}.tmp`;
   await writeFile(temporary, text, { mode: 0o600 }); await rename(temporary, sessionFile);
 }
 function supabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("Isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY di environment lokal.");
+  const { url, key } = authConfiguration();
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 export async function login(email, password) {
@@ -72,7 +81,7 @@ async function accessToken(force = false) {
     const config = await configuration(); let stored;
     try { stored = JSON.parse(await protect(await readFile(sessionFile, "utf8"), true)); }
     catch { throw new Error("Login lokal diperlukan: npm run logbook:login"); }
-    if (stored.appUrl !== config.appUrl || stored.supabaseUrl !== process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error("Alamat aplikasi berubah. Jalankan login lokal kembali.");
+    if (stored.appUrl !== config.appUrl || stored.supabaseUrl !== authConfiguration().url) throw new Error("Alamat aplikasi berubah. Jalankan login lokal kembali.");
     if (!force && stored.session.expires_at > Date.now() / 1000 + 60) return stored.session.access_token;
     const result = await supabase().auth.refreshSession({ refresh_token: stored.session.refresh_token });
     if (result.error || !result.data.session) throw new Error("Sesi berakhir. Jalankan npm run logbook:login kembali.");
